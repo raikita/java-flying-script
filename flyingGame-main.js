@@ -1,7 +1,8 @@
 
 var player;
 var allPlatforms = [];
-var debug = false;
+var debug = true;
+var offsetX;
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -12,7 +13,7 @@ function scrollWrapper(x, y) {
 // game area
 function startGame() {
     gameArea.start();
-    player = new component(30, 30, "tempPlayer.png", 10, 10, "image");
+    player = new component(30, 30, "tempPlayer.png", 100, 10, "image");
     gameLevel0();
 }
 
@@ -41,12 +42,12 @@ var camera = {
 		var yPos = player.y;
 		ctx = gameArea.context;
 		
-		//ctx.clearRect(xPos - viewX/2, yPos - viewY/2, viewX, viewY);
+		ctx.clearRect(xPos - viewX/2, yPos - viewY/2, viewX, viewY);
 
 		scrollWrapper(xPos - viewX/2, yPos - viewY/2);
 		drawLevel(xPos, yPos, viewX, viewY);
 		
-		//player.draw();
+		player.draw();
 	}
 }
 
@@ -113,14 +114,15 @@ function displayContents() {
 	var i, lines, l1, l2, l3, platform;
 	if (reader.readyState==4) {
 		lines = reader.responseText.split("\n");
-		for (i = 0; i < lines.length; i += 4) {
+		for (i = 0; i < lines.length; i += 3) {
 			l1 = lines[i].split(" ");
 			l2 = lines[i+1].split(" ");
 			l3 = lines[i+2].split(" ");
-								
+
 			platform = {x1:l1[0], y1:l1[1],
 						x2:l2[0], y2:l2[1],
 						x3:l3[0], y3:l3[1]};
+			
 			allPlatforms.push(platform);	
 		}
 	}
@@ -156,7 +158,7 @@ function component(width, height, colour, x, y, type) {
 		}
 		this.speedX += this.accel;			
 		this.detectCollision();
-		this.hitEdge();
+		//this.hitEdge();
 		this.y += this.gravitySpeed;
 		this.x += this.speedX;
 
@@ -316,14 +318,29 @@ function collide(x, y, platform, width, height) {
 	y3 = platform.y3;
 	
 	area = triangleArea(x1, x2, x3, y1, y2, y3);
+
+	s =  y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
+	t = x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y;
 	
+	document.getElementById("test1").innerHTML = s;
+	document.getElementById("test2").innerHTML = t;
+	
+	if ((s < 0) != (t < 0)) {
+		return false;
+	}
+	
+	return (area < 0 ? (s <= 0 && s + t >= area) : (s >= 0 && s + t <= area));
+	/*
 	for (var i = -width/2; i <= width/2; i+=2) {
+		document.getElementById("test1").innerHTML = x1 +" "+ y1;
+		document.getElementById("test2").innerHTML = x2 +" "+ y2;
+		document.getElementById("test3").innerHTML = x3 +" "+ y3;
 		x = px + i;
 		y = py - height/2;
 		s = 1 / (2*area)*(y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y);
 		t = 1 / (2*area)*(x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y);
 		
-		if (!(s < 0 || t < 0 || (1 - s - t) < 0))
+		if (!(s < 0 || t < 0 || (1 - s - t) < 0))    var A = -p1.Y * p2.X + p0.Y * (p2.X - p1.X) + p0.X * (p1.Y - p2.Y) + p1.X * p2.Y;
 			return true;
 	}
 	
@@ -356,12 +373,12 @@ function collide(x, y, platform, width, height) {
 		if (!(s < 0 || t < 0 || (1 - s - t) < 0))
 			return true;
 	}
-	
-	return false;
+	*/
+
 }
 
 function triangleArea(x1, x2, x3, y1, y2, y3) {
-	return 0.5 * (-y2 * x3 + y1 * (-x2 + x3) + x1 * (y2 - y3) + x2 * y3);
+	return -y2 * x3 + y1 * (x3 - x2) + x1 * (y2 - y3) + x2 * y3;
 }
 
 function distance(ax, bx, ay, by) {
