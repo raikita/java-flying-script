@@ -1,8 +1,10 @@
 
 var player;
 var allPlatforms = [];
-var debug = true;
+var inView = [];
+var debug = false;
 var offsetX;
+var showCollision = false;
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -13,7 +15,7 @@ function scrollWrapper(x, y) {
 // game area
 function startGame() {
     gameArea.start();
-    player = new component(30, 30, "tempPlayer.png", 100, 10, "image");
+    player = new component(30, 30, "tempPlayer.png", 250, 650, "image");
     gameLevel0();
 }
 
@@ -22,6 +24,7 @@ var gameArea = {
     start : function() {
         this.context = this.canvas.getContext("2d");
         this.interval = setInterval(updateGameArea, 0.02);
+        this.interval2 = setInterval(inCameraView, 1);
                 
         // keyboard controls
         window.addEventListener('keydown', function (e) {
@@ -54,35 +57,203 @@ var camera = {
 function updateGameArea() {
 	// update logic
 	controls();
+	//inCameraView();
 	player.updatePos();
 	
 	// render stuff
-	camera.draw();
+	camera.draw();	
 }
 
-function insideCamera(x, y, width, height, p) {
-	if (((p.x1 >= x && p.x1 <= x + width) && (p.y1 >= y && p.y1 <= y + height)) ||
-		((p.x2 >= x && p.x2 <= x + width) && (p.y2 >= y && p.y2 <= y + height)) ||
-		((p.x3 >= x && p.x3 <= x + width) && (p.y3 >= y && p.y3 <= y + height))) { 
+function onSegment(px, py, qx, qy, rx, ry) {
+	if (qx <= Math.max(px, rx) && qx >= Math.min(px, rx) &&
+	    qy <= Math.max(py, ry) && qy >= Math.min(py, ry)) {
 		return true;
-	} else {
+	}
+	return false;		
+}
+
+function orientation(px, py, qx, qy, rx, ry) {
+	var val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
+	
+	if (val == 0) {
+		return 0;
+	}
+	
+	return (val > 0) ? 1 : 2; // clockwise or counterclockwise
+}
+
+function intersectLine(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
+	var o1, o2, o3, o4;
+	
+	o1 = orientation(p1x, p1y, q1x, q1y, p2x, p2y);
+	o2 = orientation(p1x, p1y, q1x, q1y, q2x, q2y);
+	o3 = orientation(p2x, p2y, q2x, q2y, p1x, p1y);
+	o4 = orientation(p2x, p2y, q2x, q2y, q1x, q1y);
+	
+	if (o1 != o2 && o3 != o4) {
+		return true;
+	}
+	
+	if (o1 == 0 && onSegment(p1x, p1y, p2x, p2y, q1x, q1y)) return true;
+	if (o2 == 0 && onSegment(p1x, p1y, q2x, q2y, q1x, q1y)) return true;
+	if (o3 == 0 && onSegment(p2x, p2y, p1x, p1y, q2x, q2y)) return true;
+	if (o4 == 0 && onSegment(p2x, p2y, q1x, q1y, q2x, q2y)) return true;
+	
+	return false;
+}
+
+// check only when camera enters / exits new section?
+function inCameraView() {	
+	// x y = top left
+	// cw y = top right
+	// x ch = bottom left
+	// cw ch = bottom right
+	var x = player.x - document.getElementById('wrapper').clientWidth/2,
+		y = player.y - document.getElementById('wrapper').clientHeight/2,
+		cw = x + document.getElementById('wrapper').clientWidth,
+		ch = y + document.getElementById('wrapper').clientHeight;	
+	
+	// camera boundaries
+	if (y < 0) {
+		y = 0;
+	}
+	if (y > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
+		y = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
+	}
+	if (ch < document.getElementById('wrapper').clientHeight) {
+		ch = document.getElementById('wrapper').clientHeight;
+	}
+	if (ch > document.getElementById('canvas').clientHeight) {
+		ch = document.getElementById('canvas').clientHeight;
+	}
+	if (x < 0) {
+		x = 0;
+	}
+	if (cw < document.getElementById('wrapper').clientWidth) {
+		cw = document.getElementById('wrapper').clientWidth;
+	}
+	if (x > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
+		x = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
+	}
+	if (cw > document.getElementById('canvas').clientWidth) {
+		cw = document.getElementById('canvas').clientWidth;
+	}
+	
+	for (i = 0; i < allPlatforms.length; ++i) {
+		// check if point is in camera area in top half
+		
+		if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x1, allPlatforms[i].y1)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x2, allPlatforms[i].y2)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x3, allPlatforms[i].y3)) {
+			inView.push(allPlatforms[i]);
+		}
+		
+		//check if point is in camera area in bottom half
+		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x1, allPlatforms[i].y1)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x2, allPlatforms[i].y3)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x3, allPlatforms[i].y3)) {
+			inView.push(allPlatforms[i]);
+		}
+		
+		// check if intersect lines
+		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x1, allPlatforms[i].y1, x, y,
+				allPlatforms[i].x2, allPlatforms[i].y2, cw, ch)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x1, allPlatforms[i].y1, x, y,
+						  	   allPlatforms[i].x3, allPlatforms[i].y3, cw, ch)) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x2, allPlatforms[i].y2, x, y,
+							   allPlatforms[i].x3, allPlatforms[i].y3, cw, ch)) {
+			inView.push(allPlatforms[i]);
+		}
+		
+		else {
+			//inView.splice(i, 1);
+		}
+		
+		
+	}
+}
+
+function pointInTriangle(x1, y1, x2, y2, x3, y3, x, y) {
+	var area, s, t;
+	
+	area = triangleArea(x1, x2, x3, y1, y2, y3);
+
+	s = y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
+	t = x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y;
+	
+	if ((s < 0) != (t < 0)) {
 		return false;
 	}
+	
+	return (area < 0 ? (s <= 0 && s + t >= area) : (s >= 0 && s + t <= area));
 }
 
 function drawLevel(x, y, width, height) {
 	ctx = gameArea.context;
-	ctx.beginPath();
 
-	for (i = 0; i < allPlatforms.length; ++i) {
-		//if (collide(x, y, allPlatforms[i], width, height)) {	// if "collide".. if area in viewport
-		if (true) {
-			ctx.moveTo(allPlatforms[i].x1, allPlatforms[i].y1);
-			ctx.lineTo(allPlatforms[i].x2, allPlatforms[i].y2);
-			ctx.lineTo(allPlatforms[i].x3, allPlatforms[i].y3);
-		}	
+	if (!debug)	document.getElementById("test1").innerHTML = inView.length + "/" + allPlatforms.length;
+	// x y = top left
+	// cw y = top right
+	// x ch = bottom left
+	// cw ch = bottom right
+	var x = player.x - document.getElementById('wrapper').clientWidth/2,
+		y = player.y - document.getElementById('wrapper').clientHeight/2,
+		cw = x + document.getElementById('wrapper').clientWidth,
+		ch = y + document.getElementById('wrapper').clientHeight;	
+	
+	if (y < 0) {
+		y = 0;
 	}
-	ctx.fill();
+	if (y > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
+		y = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
+	}
+	if (ch < document.getElementById('wrapper').clientHeight) {
+		ch = document.getElementById('wrapper').clientHeight;
+	}
+	if (ch > document.getElementById('canvas').clientHeight) {
+		ch = document.getElementById('canvas').clientHeight;
+	}
+	if (x < 0) {
+		x = 0;
+	}
+	if (cw < document.getElementById('wrapper').clientWidth) {
+		cw = document.getElementById('wrapper').clientWidth;
+	}
+	if (x > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
+		x = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
+	}
+	if (cw > document.getElementById('canvas').clientWidth) {
+		cw = document.getElementById('canvas').clientWidth;
+	}
+
+	var background = new Image();
+	background.src = "level0Design.png";
+	ctx.drawImage(background, x, y, cw, ch, x, y, cw, ch);
+	
+	// temporary, just to see collisions
+	if (showCollision) {
+		ctx.beginPath()
+		for (i = 0; i < inView.length; ++i) {
+				ctx.moveTo(inView[i].x1, inView[i].y1);
+				ctx.lineTo(inView[i].x2, inView[i].y2);
+				ctx.lineTo(inView[i].x3, inView[i].y3);
+		}
+		ctx.fill();
+	}
+	
+	
 }
 
 var reader = new XMLHttpRequest() || new ActiveXObect('MSXML2.XMLHTTP');
@@ -158,7 +329,7 @@ function component(width, height, colour, x, y, type) {
 		}
 		this.speedX += this.accel;			
 		this.detectCollision();
-		//this.hitEdge();
+		this.hitEdge();
 		this.y += this.gravitySpeed;
 		this.x += this.speedX;
 
@@ -208,19 +379,19 @@ function component(width, height, colour, x, y, type) {
 		}
 		
 		// y collision
-		for (i = 0; i < allPlatforms.length; ++i) {		
+		for (i = 0; i < inView.length; ++i) {
 			// check just y collision
-			if (collide(this.x, this.y + this.gravitySpeed, allPlatforms[i], this.width, this.height)) {
+			if (collide(this.x, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 				if (debug) {
 					ctx.fillStyle = '#000000';
 					ctx.fillText("COLLISION DETECTED Y " + Math.floor(this.y), 10, 50);
 				}
 				
 				// check if can slide down
-				if (!collide(this.x - 0.5, this.y + this.gravitySpeed, allPlatforms[i], this.width, this.height)) {
+				if (!collide(this.x - 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x -= 0.5;
 				}
-				else if (!collide(this.x + 0.5, this.y + this.gravitySpeed, allPlatforms[i], this.width, this.height)) {
+				else if (!collide(this.x + 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x += 0.5;
 				}
 				else				
@@ -230,11 +401,11 @@ function component(width, height, colour, x, y, type) {
 		}
 		
 		// x collision
-		for (i = 0; i < allPlatforms.length; ++i) {
+		for (i = 0; i < inView.length; ++i) {
 			// check slope collision up
 			for (j = 1; j < slopeMax; ++j) {
-				if (collide(this.x + this.speedX, this.y, allPlatforms[i], this.width, this.height) &&
-					!collide(this.x + this.speedX, this.y - j, allPlatforms[i], this.width, this.height)) {
+				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
+					!collide(this.x + this.speedX, this.y - j, inView[i], this.width, this.height)) {
 					this.y -= j;
 					break;
 				}
@@ -242,15 +413,15 @@ function component(width, height, colour, x, y, type) {
 			
 			// check slope collision down
 			for (j = 1; j < slopeMax; ++j) {
-				if (collide(this.x + this.speedX, this.y, allPlatforms[i], this.width, this.height) &&
-					!collide(this.x + this.speedX, this.y + j, allPlatforms[i], this.width, this.height)) {
+				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
+					!collide(this.x + this.speedX, this.y + j, inView[i], this.width, this.height)) {
 					this.y += j;
 					break;
 				}
 			}
 			
 			// check just x collision
-			if (collide(this.x + this.speedX, this.y, allPlatforms[i], this.width, this.height)) {
+			if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height)) {
 				if (debug) {
 					ctx.fillStyle = '#000000';
 					ctx.fillText("COLLISION DETECTED X " + Math.floor(this.x), 10, 100);
@@ -319,11 +490,8 @@ function collide(x, y, platform, width, height) {
 	
 	area = triangleArea(x1, x2, x3, y1, y2, y3);
 
-	s =  y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
+	s = y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
 	t = x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y;
-	
-	document.getElementById("test1").innerHTML = s;
-	document.getElementById("test2").innerHTML = t;
 	
 	if ((s < 0) != (t < 0)) {
 		return false;
