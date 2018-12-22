@@ -4,7 +4,7 @@ var allPlatforms = [];
 var inView = [];
 var debug = false;
 var offsetX;
-var showCollision = true;
+var showCollision = false;
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -64,144 +64,42 @@ function updateGameArea() {
 	camera.draw();	
 }
 
-function onSegment(px, py, qx, qy, rx, ry) {
-	if (qx <= Math.max(px, rx) && qx >= Math.min(px, rx) &&
-	    qy <= Math.max(py, ry) && qy >= Math.min(py, ry)) {
-		return true;
-	}
-	return false;		
-}
-
-function orientation(px, py, qx, qy, rx, ry) {
-	var val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy);
+function inCameraView() {		
+	x = player.x;
+	y = player.y;
+	radius = 500;
+	radiusSqr = radius*radius;
 	
-	if (val == 0) {
-		return 0;
-	}
-	
-	return (val > 0) ? 1 : 2; // clockwise or counterclockwise
-}
-
-function intersectLine(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
-	var o1, o2, o3, o4;
-	
-	o1 = orientation(p1x, p1y, q1x, q1y, p2x, p2y);
-	o2 = orientation(p1x, p1y, q1x, q1y, q2x, q2y);
-	o3 = orientation(p2x, p2y, q2x, q2y, p1x, p1y);
-	o4 = orientation(p2x, p2y, q2x, q2y, q1x, q1y);
-	
-	if (o1 != o2 && o3 != o4) {
-		return true;
-	}
-	
-	if (o1 == 0 && onSegment(p1x, p1y, p2x, p2y, q1x, q1y)) return true;
-	if (o2 == 0 && onSegment(p1x, p1y, q2x, q2y, q1x, q1y)) return true;
-	if (o3 == 0 && onSegment(p2x, p2y, p1x, p1y, q2x, q2y)) return true;
-	if (o4 == 0 && onSegment(p2x, p2y, q1x, q1y, q2x, q2y)) return true;
-	
-	return false;
-}
-
-function inCameraView() {	
-	// x y = top left
-	// cw y = top right
-	// x ch = bottom left
-	// cw ch = bottom right
-	var x = player.x - document.getElementById('wrapper').clientWidth/2,
-		y = player.y - document.getElementById('wrapper').clientHeight/2,
-		cw = x + document.getElementById('wrapper').clientWidth,
-		ch = y + document.getElementById('wrapper').clientHeight;	
-
-	// camera boundaries
-	if (y < 0) {
-		y = 0;
-	}
-	if (y > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
-		y = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
-	}
-	if (ch < document.getElementById('wrapper').clientHeight) {
-		ch = document.getElementById('wrapper').clientHeight;
-	}
-	if (ch > document.getElementById('canvas').clientHeight) {
-		ch = document.getElementById('canvas').clientHeight;
-	}
-	if (x < 0) {
-		x = 0;
-	}
-	if (cw < document.getElementById('wrapper').clientWidth) {
-		cw = document.getElementById('wrapper').clientWidth;
-	}
-	if (x > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
-		x = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
-	}
-	if (cw > document.getElementById('canvas').clientWidth) {
-		cw = document.getElementById('canvas').clientWidth;
-	}
-	
-	for (i = 0; i < allPlatforms.length; ++i) {
-		// check if point is in camera area in top half
+	inView = [];
+	for (i = allPlatforms.length - 1; i >= 0; --i) {
+		cx1 = x - allPlatforms[i].x1;
+		cy1 = y - allPlatforms[i].y1;
+		cx2 = x - allPlatforms[i].x2;
+		cy2 = y - allPlatforms[i].y2;
+		cx3 = x - allPlatforms[i].x3;
+		cy3 = y - allPlatforms[i].y3;
 		
-		if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x1, allPlatforms[i].y1)) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x2, allPlatforms[i].y2)) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(x, y, cw, y, x, ch, allPlatforms[i].x3, allPlatforms[i].y3)) {
-			inView.push(allPlatforms[i]);
-		}
+		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
+		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
+		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
 		
-		//check if point is in camera area in bottom half
-		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x1, allPlatforms[i].y1)) {
+		// check if triangle vertex in circle
+		if (c1Sqr <= 0) {
 			inView.push(allPlatforms[i]);
 		}
-		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x2, allPlatforms[i].y3)) {
+		else if (c2Sqr <= 0) {
 			inView.push(allPlatforms[i]);
 		}
-		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x3, allPlatforms[i].y3)) {
+		else if (c3Sqr <= 0){
 			inView.push(allPlatforms[i]);
 		}
-		/*
-		// check if intersect lines
-		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x1, allPlatforms[i].y1, x, y,
-				allPlatforms[i].x2, allPlatforms[i].y2, cw, ch)) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x1, allPlatforms[i].y1, x, y,
-						  	   allPlatforms[i].x3, allPlatforms[i].y3, cw, ch)) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x2, allPlatforms[i].y2, x, y,
-							   allPlatforms[i].x3, allPlatforms[i].y3, cw, ch)) {
-			inView.push(allPlatforms[i]);
-		}
-		*/
-		else {
-			inView.splice(i, 1);
-		}	
 	}
-
-}
-
-function pointInTriangle(x1, y1, x2, y2, x3, y3, x, y) {
-	var area, s, t;
-	
-	area = triangleArea(x1, x2, x3, y1, y2, y3);
-
-	s = y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
-	t = x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y;
-	
-	if ((s < 0) != (t < 0)) {
-		return false;
-	}
-	
-	return (area < 0 ? (s <= 0 && s + t >= area) : (s >= 0 && s + t <= area));
 }
 
 function drawLevel(x, y, width, height) {
 	ctx = gameArea.context;
 
-	if (!debug)	document.getElementById("test1").innerHTML = inView.length + "/" + allPlatforms.length;
+	if (debug) document.getElementById("test1").innerHTML = inView.length + "/" + allPlatforms.length;
 	// x y = top left
 	// cw y = top right
 	// x ch = bottom left
@@ -250,8 +148,6 @@ function drawLevel(x, y, width, height) {
 		}
 		ctx.stroke();
 	}
-	
-	
 }
 
 var reader = new XMLHttpRequest() || new ActiveXObect('MSXML2.XMLHTTP');
@@ -386,10 +282,10 @@ function component(width, height, colour, x, y, type) {
 				}
 				
 				// check if can slide down
-				if (!collide(this.x - 1, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+				if (!collide(this.x - 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x -= 0.5;
 				}
-				else if (!collide(this.x + 1, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+				else if (!collide(this.x + 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x += 0.5;
 				}
 				else				
@@ -542,16 +438,6 @@ function collide(x, y, platform, width, height) {
 	
 	return false;
 }
-
-function triangleArea(x1, x2, x3, y1, y2, y3) {
-	return -y2 * x3 + y1 * (x3 - x2) + x1 * (y2 - y3) + x2 * y3;
-}
-
-function distance(ax, bx, ay, by) {
-	return Math.floor(Math.sqrt(Math.pow(ax - bx, 2) + Math.pow(ay - by, 2)));
-}
-
-
 
 
 
