@@ -4,7 +4,7 @@ var allPlatforms = [];
 var inView = [];
 var debug = false;
 var offsetX;
-var showCollision = false;
+var showCollision = true;
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -15,7 +15,7 @@ function scrollWrapper(x, y) {
 // game area
 function startGame() {
     gameArea.start();
-    player = new component(30, 30, "tempPlayer.png", 250, 650, "image");
+    player = new component(30, 30, "tempPlayer.png", 250, 620, "image");
     gameLevel0();
 }
 
@@ -102,7 +102,6 @@ function intersectLine(p1x, p1y, q1x, q1y, p2x, p2y, q2x, q2y) {
 	return false;
 }
 
-// check only when camera enters / exits new section?
 function inCameraView() {	
 	// x y = top left
 	// cw y = top right
@@ -112,7 +111,7 @@ function inCameraView() {
 		y = player.y - document.getElementById('wrapper').clientHeight/2,
 		cw = x + document.getElementById('wrapper').clientWidth,
 		ch = y + document.getElementById('wrapper').clientHeight;	
-	
+
 	// camera boundaries
 	if (y < 0) {
 		y = 0;
@@ -162,7 +161,7 @@ function inCameraView() {
 		else if (!inView.includes(allPlatforms[i]) && pointInTriangle(cw, y, cw, ch, x, ch, allPlatforms[i].x3, allPlatforms[i].y3)) {
 			inView.push(allPlatforms[i]);
 		}
-		
+		/*
 		// check if intersect lines
 		else if (!inView.includes(allPlatforms[i]) && intersectLine(allPlatforms[i].x1, allPlatforms[i].y1, x, y,
 				allPlatforms[i].x2, allPlatforms[i].y2, cw, ch)) {
@@ -176,13 +175,12 @@ function inCameraView() {
 							   allPlatforms[i].x3, allPlatforms[i].y3, cw, ch)) {
 			inView.push(allPlatforms[i]);
 		}
-		
+		*/
 		else {
-			//inView.splice(i, 1);
-		}
-		
-		
+			inView.splice(i, 1);
+		}	
 	}
+
 }
 
 function pointInTriangle(x1, y1, x2, y2, x3, y3, x, y) {
@@ -250,7 +248,7 @@ function drawLevel(x, y, width, height) {
 				ctx.lineTo(inView[i].x2, inView[i].y2);
 				ctx.lineTo(inView[i].x3, inView[i].y3);
 		}
-		ctx.fill();
+		ctx.stroke();
 	}
 	
 	
@@ -388,10 +386,10 @@ function component(width, height, colour, x, y, type) {
 				}
 				
 				// check if can slide down
-				if (!collide(this.x - 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+				if (!collide(this.x - 1, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x -= 0.5;
 				}
-				else if (!collide(this.x + 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+				else if (!collide(this.x + 1, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 					this.x += 0.5;
 				}
 				else				
@@ -478,9 +476,8 @@ function controls() {
 
 function collide(x, y, platform, width, height) {
 	// thanks https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
-	var x1, x2, x3, y1, y2, y3, s, t, area, py, px;
-	px = x;
-	py = y;
+	
+	// using this: http://www.phatcode.net/articles.php?id=459
 	x1 = platform.x1;
 	x2 = platform.x2;
 	x3 = platform.x3;
@@ -488,61 +485,62 @@ function collide(x, y, platform, width, height) {
 	y2 = platform.y2;
 	y3 = platform.y3;
 	
-	area = triangleArea(x1, x2, x3, y1, y2, y3);
-
-	s = y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y;
-	t = x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y;
+	radius = 17;
+	radiusSqr = radius*radius;
+	cx1 = x - x1;
+	cy1 = y - y1;
+	cx2 = x - x2;
+	cy2 = y - y2;
+	cx3 = x - x3;
+	cy3 = y - y3;
 	
-	if ((s < 0) != (t < 0)) {
-		return false;
+	c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
+	c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
+	c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
+	// check if triangle vertex in circle
+	if (c1Sqr <= 0)
+		return true;
+	if (c2Sqr <= 0)
+		return true;
+	if (c3Sqr <= 0)
+		return true;
+	
+	// check if triangle edges in circle
+	ex1 = x2 - x1;
+	ey1 = y2 - y1;
+	ex2 = x3 - x2;
+	ey2 = y3 - y2;
+	ex3 = x1 - x3;
+	ey3 = y1 - y3;
+	
+	k = cx1*ex1 + cy1*ey1;
+	if (k > 0) {
+		len = ex1*ex1 + ey1*ey1;
+		if (k < len) {
+			if (c1Sqr * len <= k*k)
+				return true;
+		}
 	}
 	
-	return (area < 0 ? (s <= 0 && s + t >= area) : (s >= 0 && s + t <= area));
-	/*
-	for (var i = -width/2; i <= width/2; i+=2) {
-		document.getElementById("test1").innerHTML = x1 +" "+ y1;
-		document.getElementById("test2").innerHTML = x2 +" "+ y2;
-		document.getElementById("test3").innerHTML = x3 +" "+ y3;
-		x = px + i;
-		y = py - height/2;
-		s = 1 / (2*area)*(y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y);
-		t = 1 / (2*area)*(x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y);
-		
-		if (!(s < 0 || t < 0 || (1 - s - t) < 0))    var A = -p1.Y * p2.X + p0.Y * (p2.X - p1.X) + p0.X * (p1.Y - p2.Y) + p1.X * p2.Y;
-			return true;
+	k = cx2*ex2 + cy2*ey2;
+	if (k > 0) {
+		len = ex2*ex2 + ey2*ey2;
+		if (k < len) {
+			if (c2Sqr * len <= k*k)
+				return true;
+		}
 	}
 	
-	for (var i = -height/2; i <= height/2; i+=2) {
-		x = px - width/2;
-		y = py + i;
-		s = 1 / (2*area)*(y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y);
-		t = 1 / (2*area)*(x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y);
-		
-		if (!(s < 0 || t < 0 || (1 - s - t) < 0))
-			return true;
+	k = cx3*ex3 + cy3*ey3;
+	if (k > 0) {
+		len = ex3*ex3 + ey3*ey3;
+		if (k < len) {
+			if (c3Sqr * len <= k*k)
+				return true;
+		}
 	}
 	
-	for (var i = -width/2; i <= width/2; i+=2) {
-		x = px + i;
-		y = py + height/2;
-		s = 1 / (2*area)*(y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y);
-		t = 1 / (2*area)*(x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y);
-		
-		if (!(s < 0 || t < 0 || (1 - s - t) < 0))
-			return true;
-	}
-	
-	for (var i = -height/2; i <= height/2; i+=2) {
-		x = px + width/2;
-		y = py + i;
-		s = 1 / (2*area)*(y1 * x3 - x1 * y3 + (y3 - y1) * x + (x1 - x3) * y);
-		t = 1 / (2*area)*(x1 * y2 - y1 * x2 + (y1 - y2) * x + (x2 - x1) * y);
-		
-		if (!(s < 0 || t < 0 || (1 - s - t) < 0))
-			return true;
-	}
-	*/
-
+	return false;
 }
 
 function triangleArea(x1, x2, x3, y1, y2, y3) {
