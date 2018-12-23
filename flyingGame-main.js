@@ -5,6 +5,8 @@ var inView = [];
 var debug = false;
 var offsetX;
 var showCollision = false;
+var keydown = false;
+var flyKeydown = false;
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -30,9 +32,23 @@ var gameArea = {
         window.addEventListener('keydown', function (e) {
             gameArea.keys = (gameArea.keys || []);
             gameArea.keys[e.keyCode] = (e.type == "keydown");
+            if (keydown == false) {
+            	keydown = true;
+            }
+            if (e.repeat) {
+            	keydown = false;
+            }
+            if (flyKeydown == false && e.keyCode == 65 && keydown) {
+            	flyKeydown = true;
+            }
+            if (!keydown && e.keyCode == 65) {
+            	flyKeydown = false;
+            }
         })
         window.addEventListener('keyup', function (e) {
-            gameArea.keys[e.keyCode] = (e.type == "keydown");            
+            gameArea.keys[e.keyCode] = (e.type == "keydown");  
+            keydown = false;
+            flyKeydown = false;
         })
     }
 }
@@ -193,6 +209,18 @@ function displayContents() {
 	}
 }
 
+var playerState = {
+	Idling:"idling",
+	Walking:"walking",
+	Running:"running",
+	Flying:"flying",
+	Gliding:"gliding",
+	Falling:"falling",
+	Jumping:"jumping",
+	Landing:"landing",
+	Dying:"dying"
+}
+
 function component(width, height, colour, x, y, type) {
 	this.type = type;
 	if (type == "image") {
@@ -200,6 +228,7 @@ function component(width, height, colour, x, y, type) {
 		this.image.src = colour;
 	}
 	
+	this.state = playerState.Idling;
 	this.width = width;
 	this.height = height;
 	this.speedX = 0;
@@ -214,7 +243,7 @@ function component(width, height, colour, x, y, type) {
 	
 	this.accelInc = 0.05;
 	this.accel = this.accelInc;
-	this.maxAccel = 2;
+	this.maxAccel = 4;
 	
 	this.updatePos = function() {
 		if (this.gravitySpeed + this.gravity <= this.maxGravitySpeed &&
@@ -227,7 +256,7 @@ function component(width, height, colour, x, y, type) {
 		this.y += this.gravitySpeed;
 		this.x += this.speedX;
 
-		this.hitBottom();	// TODO: Make hitting bottom = DEATH
+		//this.hitBottom();	// TODO: Make hitting bottom = DEATH
 	}
 	
 	this.draw = function () {
@@ -265,7 +294,7 @@ function component(width, height, colour, x, y, type) {
 	}
 	
 	this.detectCollision = function() {
-		var slopeMax = 5;
+		var slopeMax = 5, slopeFall = 0.2;;
 		
 		if (debug) {
 			ctx = gameArea.context;
@@ -282,34 +311,47 @@ function component(width, height, colour, x, y, type) {
 				}
 				
 				// check if can slide down
-				if (!collide(this.x - 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
-					this.x -= 0.5;
+				if (!collide(this.x - slopeFall, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+					this.x -= slopeFall;
 				}
-				else if (!collide(this.x + 0.5, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
-					this.x += 0.5;
+				else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
+					this.x += slopeFall;
 				}
-				else				
+				else {
 					this.gravitySpeed = 0;
-				break;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
+					break;
+				}	
 			}
 		}
 		
 		// x collision
+		var moveUpSlope = false;
 		for (i = 0; i < inView.length; ++i) {
 			// check slope collision up
 			for (j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inView[i], this.width, this.height)) {
 					this.y -= j;
+					moveUpSlope = true;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
 					break;
 				}
 			}
 			
 			// check slope collision down
 			for (j = 1; j < slopeMax; ++j) {
+				if (moveUpSlope) break;
 				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y + j, inView[i], this.width, this.height)) {
 					this.y += j;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
 					break;
 				}
 			}
@@ -322,6 +364,9 @@ function component(width, height, colour, x, y, type) {
 				}
 				this.speedX = 0;
 				this.accel = 0;
+				if (this.state == playerState.Gliding) {
+					this.state = playerState.Falling;
+				}
 				break;
 			}		
 		}
@@ -363,16 +408,96 @@ function controls() {
 	}
 	
 	// jump/fly
-	if (gameArea.keys && gameArea.keys[65]) {
-		player.gravity = -0.2;
-	} else {
+	if (player.state != playerState.Flying) {
+		//flyingFrames = 0;
+	}
+	switch (player.state) {
+	case playerState.Idling:
+		if (gameArea.keys && gameArea.keys[65]) {
+			player.state = playerState.Jumping;
+		}
+		
+		break;
+	case playerState.Walking:
+		if (gameArea.keys && gameArea.keys[65]) {
+			player.state = playerState.Jumping;
+		}
+
+		break;
+	case playerState.Running:
+		if (gameArea.keys && gameArea.keys[65]) {
+			player.state = playerState.Jumping;
+		}
+
+		break;
+	case playerState.Jumping:
+		jumping();
+		break;
+	case playerState.Flying:
+		if (gameArea.keys[65] && flyKeydown) {
+			flyingFrames = 0;
+		}
+		flying();
+		break;
+	case playerState.Gliding:
+		if (player.gravity < 0.1) {
+			player.gravity += 0.001;
+		}
+		if (player.gravitySpeed > 1) {
+			player.gravitySpeed -= 0.1;
+		}
+		if (player.gravitySpeed < 1) {
+			player.gravitySpeed += 0.1;
+		}
+		if (gameArea.keys[65] && flyKeydown) {
+			player.state = playerState.Flying;
+		}
+		if (gameArea.keys[40]) {
+			player.state = playerState.Falling;
+		}
+		break;
+	case playerState.Falling:
 		player.gravity = 0.1;
+		if (gameArea.keys[65] && flyKeydown) {
+			player.state = playerState.Flying;
+		}
+		if (player.gravitySpeed == 0) {
+			player.state = playerState.Idling;
+		}
+		break;
+	}
+	
+	
+	document.getElementById("test1").innerHTML = player.gravity;
+	document.getElementById("test2").innerHTML = player.gravitySpeed;
+}
+
+var flyingFrames = 0;
+var jumpingFrames = 0;
+
+function jumping() {
+	jumpingFrames++;
+	if (jumpingFrames > 30) {
+		player.state = playerState.Falling;
+		jumpingFrames = 0;
+	}
+	else {
+		player.gravity = -1;
 	}
 }
 
-function collide(x, y, platform, width, height) {
-	// thanks https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
-	
+function flying() {
+	flyingFrames++;
+	if (flyingFrames > 20) {
+		player.state = playerState.Gliding;
+		flyingFrames = 0;
+	}
+	else {
+		player.gravity = -0.1;
+	}
+}
+
+function collide(x, y, platform, width, height) {	
 	// using this: http://www.phatcode.net/articles.php?id=459
 	x1 = platform.x1;
 	x2 = platform.x2;
