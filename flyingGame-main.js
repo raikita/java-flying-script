@@ -1,12 +1,11 @@
 /*
- *  TODO: Game runs slow because of canvas size, fix camera canvas
  *  TODO: Show off iridescence: enter lit area, scales shine
  */
 
 
 var player;
-var allPlatforms = [], inView = [], allProjectiles = [];
-var debug = false, showCollision = true;
+var allPlatforms = [], inView = [], allProjectiles = [], allEnemies = [], inViewEnemies = [];
+var debug = false, showCollision = false;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var offsetX, prevX = 0, prevY = 0;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0;
@@ -40,46 +39,25 @@ var camera = {
 			camera.y1 = player.y - document.getElementById('wrapper').clientHeight/2;
 			if (camera.x1 < 0) camera.x1 = 0;
 			if (camera.y1 < 0) camera.y1 = 0;
-			if (camera.x1 > 9000 - 700) camera.x1 = 9000 - 700;
+			if (camera.x1 > 10000 - 700) camera.x1 = 10000 - 700;
 			if (camera.y1 > 2000 - 525) camera.y1 = 2000 - 525;
 			camera.x2 = camera.x1 + document.getElementById('wrapper').clientWidth;
 			camera.y2 = camera.y2 + document.getElementById('wrapper').clientHeight;
 		},
 		draw : function() {
-			var xPos = player.x;
-			var yPos = player.y;
-			ctx = gameArea.context;
-			
-			//ctx.clearRect(xPos - camera.x2/2, yPos - camera.y2/2, camera.x2, camera.y2);
+			var ctx = gameArea.context;
+
 			ctx.setTransform(1,0,0,1,0,0);
 			ctx.clearRect(0,0, 700, 525);
 			ctx.translate(-camera.x1, -camera.y1);
-			//scrollWrapper(xPos - camera.x2/2, yPos - camera.y2/2);
-			drawLevel(xPos, yPos, camera.x2, camera.y2);
 			
+			drawLevel(player.x, player.y, camera.x2, camera.y2);
 			player.draw();
 			for (i = 0; i < allProjectiles.length; ++i) {
 				allProjectiles[i].draw();
 			}
 		}
 };
-
-
-
-function updatePositions() {
-	var cameraX = camera.x1;
-	var cameraY = camera.y1;
-	document.getElementById("test1").innerHTML = camera.x1;
-	for (var i = 0; i < allPlatforms.length; ++i) {
-		allPlatforms[i].x1 += cameraX;
-		allPlatforms[i].y1 += cameraY;
-		allPlatforms[i].x2 += cameraX;
-		allPlatforms[i].y2 += cameraY;
-		allPlatforms[i].x3 += cameraX;
-		allPlatforms[i].y3 += cameraY;
-	}
-	
-}
 
 var gameArea = {
 	    canvas : document.getElementById('canvas'),
@@ -113,50 +91,18 @@ var gameArea = {
 	    }
 };
 
-function scrollWrapper(x, y) {
-	var wrapper = document.getElementById('wrapper');
-	wrapper.scrollTop = y;
-	wrapper.scrollLeft = x;
-}
-
 function startGame() {
     gameArea.start();
-    player = new component(75, 75, "imgs/player/stand.png", 250, 0, "image");
+    player = new player(75, 75, "imgs/player/stand.png", 250, 500, "image");
     gameLevel0();
     inCameraView();
 }
 
 function drawLevel(x, y, width, height) {
-	ctx = gameArea.context;
-
-	if (debug) document.getElementById("test1").innerHTML = inView.length + "/" + allPlatforms.length;
-	/*
-	if (camera.y1 < 0) {
-		camera.y1 = 0;
-	}
-	if (camera.y1 > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
-		camera.y1 = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
-	}
-	if (camera.y2 < document.getElementById('wrapper').clientHeight) {
-		camera.y2 = document.getElementById('wrapper').clientHeight;
-	}
-	if (camera.y2 > document.getElementById('canvas').clientHeight) {
-		camera.y2 = document.getElementById('canvas').clientHeight;
-	}
-	if (camera.x1 < 0) {
-		camera.x1 = 0;
-	}
-	if (camera.x2 < document.getElementById('wrapper').clientWidth) {
-		camera.x2 = document.getElementById('wrapper').clientWidth;
-	}
-	if (camera.x1 > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
-		camera.x1 = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
-	}
-	if (camera.x2 > document.getElementById('canvas').clientWidth) {
-		camera.x2 = document.getElementById('canvas').clientWidth;
-	}
-*/
-	var background = new Image();
+	var ctx = gameArea.context, background = new Image();
+	
+	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inView.length + "/" + allPlatforms.length;
+	
 	background.src = "imgs/levels/level0.png";
 
 	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
@@ -178,7 +124,11 @@ var reader = new XMLHttpRequest() || new ActiveXObect('MSXML2.XMLHTTP');
 function gameLevel0() {
     var background = new Image();
     
-    loadFile();	// change name of file depending on level, later	
+    loadFile();	// change name of file depending on level, later
+    
+    spawnEnemy(1, 500, 1220);
+    spawnEnemy(1, 700, 1220);
+    spawnEnemy(1, 350, 1220);
 }
 
 function loadFile() {
@@ -189,9 +139,10 @@ function loadFile() {
 
 function displayContents() {
 	var i, lines, l1, l2, l3, platform;
-	if (reader.readyState==4) {
+	if (reader.readyState == 4) {
 		lines = reader.responseText.split("\n");
 		for (i = 0; i < lines.length; i += 3) {
+			if (lines.length < i + 1) break;
 			l1 = lines[i].split(" ");
 			l2 = lines[i+1].split(" ");
 			l3 = lines[i+2].split(" ");
@@ -206,9 +157,10 @@ function displayContents() {
 }
 
 function updateGameArea() {
-	var distance = 200;
+	var distance = 200;	// how far player must go before updating what's in camera's view for collisions
+	
+	// update camera's position
 	camera.update();
-	updatePositions();
 	// update what's in or not in camera's view
 	if ((player.x > prevX + distance) || (player.x < prevX - distance) || 
 			(player.y > prevY + distance) || (player.y < prevY - distance)) {
@@ -223,14 +175,100 @@ function updateGameArea() {
 	if (debug) document.getElementById("test10").innerHTML = "projectile length: " + allProjectiles.length;
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].updatePos();
-		
 		if (allProjectiles[i].shouldDie) {
 			delete allProjectiles.splice(i, 1);
 		}
 	}
+	for (var i = 0; i < inViewEnemies.length; ++i) {
+		inViewEnemies[i].updatePos();
+		
+		if (inViewEnemies[i].shouldDie) {
+			for (var j = 0; j < allEnemies.length; ++j) {
+				if (inViewEnemies[i] === allEnemies[j]) {
+					delete allEnemies.splice(j, 1);
+					delete inViewEnemies.splice(i, 1);
+					break;
+				}
+			}
+		}
+	}
 	
 	// render stuff
-	camera.draw();	
+	// camera.draw();
+	ctx = gameArea.context;
+
+	ctx.setTransform(1,0,0,1,0,0);
+	ctx.clearRect(0,0, 700, 525);
+	ctx.translate(-camera.x1, -camera.y1);
+	
+	drawLevel(player.x, player.y, camera.x2, camera.y2);
+	
+	for (var i = 0; i < inViewEnemies.length; ++i) {
+		inViewEnemies[i].draw();
+	}
+	
+	for (var i = 0; i < allProjectiles.length; ++i) {
+		allProjectiles[i].draw();
+	}
+	player.draw();
+	
+}
+
+function spawnEnemy(type, x, y) {
+	if (type == 1) {
+		var e = new enemy("", 70, 70, "Orange", x, y, 5);
+		allEnemies.push(e);
+	}
+}
+
+function enemy(image, width, height, colour, x, y, hitPoints) {
+	this.image = new Image();
+	this.image.src = "";
+	
+	this.width = width;
+	this.height = height;
+	
+	this.speedX = 0;
+	this.gravity = 0.1;
+	this.gravitySpeed = 0;
+	
+	this.x = x;
+	this.y = y;
+	
+	this.shouldDie = false;
+	
+	this.hitPoints = hitPoints;
+	
+	this.updatePos = function() {
+		this.gravitySpeed += this.gravity;
+		this.detectCollision();
+	}
+	
+	this.draw = function () {
+		var ctx = gameArea.context;
+		ctx.fillStyle = colour;
+		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+	}
+	
+	this.detectCollision = function () {
+		// check if it got shot
+		for (var i = 0; i < allProjectiles.length; ++i) {
+			// if the owner is true then it belongs to the player
+			if (allProjectiles[i].owner && collideObject(this.x, this.y, allProjectiles[i], this.width, this.height)) {
+				this.hitPoints--;
+				allProjectiles[i].shouldDie = true;
+				if (this.hitPoints <= 0) {
+					this.shouldDie = true;
+				}
+				break;
+			}
+		}
+	}
+	
+	// detect player?
+	
+	// shoot stuff?
+	
 }
 
 function projectile(width, height, colour, x, y, owner, bounces, direction, startingSpeed) {
@@ -251,7 +289,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.y = y;
 	
 	this.numBounce = 0;
-	this.lifeSpan = 120;	// lives for how many frames
+	this.lifeSpan = 180;	// lives for how many frames
 	this.shouldDie = false;
 	
 	this.updatePos = function() {
@@ -264,7 +302,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 		this.gravitySpeed += this.gravity;
 		
 		this.detectCollision();
-		if (this.numBounce > 5) {
+		if (this.numBounce > 10) {
 			this.shouldDie = true;
 		}
 		
@@ -273,7 +311,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 	
 	this.draw = function () {
-		ctx = gameArea.context;
+		var ctx = gameArea.context;
 		ctx.fillStyle = colour;
 		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
 	}
@@ -308,12 +346,13 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height)) {
 				this.speedX *= -0.7;
 				this.numBounce++;
+				break;
 			}	
 		}
 	}
 }
 
-function component(width, height, colour, x, y, type) {
+function player(width, height, colour, x, y, type) {
 	this.type = type;
 	if (type == "image") {
 		this.image = new Image();
@@ -359,12 +398,13 @@ function component(width, height, colour, x, y, type) {
 		this.hitEdge();
 		this.y += this.gravitySpeed;
 		this.x += this.speedX;
-
-		//this.hitBottom();	// TODO: Make hitting bottom = DEATH
+		
+		if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ",<br> accel:  " + player.accel;
+		if (debug) document.getElementById("test5").innerHTML = "gravitySpeed: " + this.gravitySpeed + ",<br> gravity: " + this.gravity;
 	}
 	
 	this.draw = function () {
-		ctx = gameArea.context;
+		var ctx = gameArea.context;
 		if (type == "image") {
 			if (this.faceRight) {
 				ctx.drawImage(this.image, this.x - this.width/2, this.y - this.height/2, this.width, this.height);
@@ -373,18 +413,9 @@ function component(width, height, colour, x, y, type) {
 				ctx.drawImage(this.image, -this.x - this.width/2, this.y - this.height/2, this.width, this.height);
 				ctx.setTransform(1, 0, 0, 1, 0, 0);
 			}
-			
 		} else {
 			ctx.fillStyle = colour;
 			ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
-		}
-	}
-	
-	this.hitBottom = function() {
-		var bottom = gameArea.canvas.height - this.height;
-		if (this.y > bottom) {
-			this.y = bottom;
-			this.gravitySpeed = 0;
 		}
 	}
 	
@@ -406,7 +437,18 @@ function component(width, height, colour, x, y, type) {
 		if (debug) document.getElementById("test5").innerHTML = "";
 		
 		// y collision
-		for (i = 0; i < inView.length; ++i) {
+		
+		for (var i = 0; i < inViewEnemies.length; ++i) {
+			if (collideObject(this.x, this.y + this.gravitySpeed, inViewEnemies[i], this.width, this.height) || 
+				collideObject(this.x + this.speedX, this.y, inViewEnemies[i], this.width, this.height)) {
+				this.gravitySpeed = -1;
+				this.speedX *= -1;
+				this.accel *= -1;
+				
+			}
+		}
+		
+		for (var i = 0; i < inView.length; ++i) {			
 			// check just y collision
 			if (collide(this.x, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {
 				// check if can slide down
@@ -438,11 +480,10 @@ function component(width, height, colour, x, y, type) {
 				break;
 			}
 		}
-		if (debug) document.getElementById("test5").innerHTML = "gravitySpeed: " + this.gravitySpeed + ", gravity: " + this.gravity;
 		// x collision
-		for (i = 0; i < inView.length; ++i) {
+		for (var i = 0; i < inView.length; ++i) {
 			// check slope collision up
-			for (j = 1; j < slopeMax; ++j) {
+			for (var j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inView[i], this.width, this.height)) {
 					this.y -= j;
@@ -455,7 +496,7 @@ function component(width, height, colour, x, y, type) {
 			}
 			
 			// check slope collision down
-			for (j = 1; j < slopeMax; ++j) {
+			for (var j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y + j, inView[i], this.width, this.height)) {
 					this.y += j;
@@ -489,12 +530,9 @@ function controls() {
 	if (gameArea.keys && gameArea.keys[key.left]) {player.accel += -0.2; offsetX++; player.faceRight = false;}
 	if (gameArea.keys && gameArea.keys[key.right]) {player.accel += 0.2; offsetX--; player.faceRight = true;}
 	
-	if (debug) document.getElementById("test8").innerHTML = "";
 	if (gameArea.keys && gameArea.keys[key.s] && shootKeydown) {
 		player.shootProjectile(); 
 		shootKeydown = false;
-		if (debug) document.getElementById("test8").innerHTML = "shot projectile #" + allProjectiles.length;
-		
 	}
 	
 	// slow down if player stopped pressing key
@@ -523,7 +561,7 @@ function controls() {
 		}
 	}
 	
-	// prevent plaer moving too fast
+	// prevent player moving too fast
 	if (player.accel > player.maxAccel) {
 		player.accel = player.maxAccel;
 	}
@@ -560,19 +598,10 @@ function controls() {
 		jumping();
 		break;
 	case playerState.Flying:
-		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
-			flyingFrames = 0;
-		}
 		flying();
 		break;
 	case playerState.Gliding:
 		gliding();
-		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
-			player.state = playerState.Flying;
-		}
-		if (gameArea.keys && gameArea.keys[key.down]) {
-			player.state = playerState.Falling;
-		}
 		break;
 	case playerState.Falling:
 		falling();
@@ -581,8 +610,7 @@ function controls() {
 		landing();
 		break;
 	}
-	if (debug) document.getElementById("test2").innerHTML = player.state;
-	if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ", accel: " + player.accel;
+	if (debug) document.getElementById("test2").innerHTML = player.state;	
 }
 
 function hitGround() {
@@ -611,6 +639,10 @@ function falling() {
 }
 
 function landing() {
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+		landingFrames = 0;
+		player.state = playerState.Jumping;
+	}
 	landingFrames++;
 	if (landingFrames > 30) {
 		landingFrames = 0;
@@ -628,6 +660,12 @@ function gliding() {
 	if (player.gravitySpeed < 1) {
 		player.gravitySpeed += 0.1;
 	}
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+		player.state = playerState.Flying;
+	}
+	if (gameArea.keys && gameArea.keys[key.down]) {
+		player.state = playerState.Falling;
+	}
 }
 
 function jumping() {
@@ -644,9 +682,13 @@ function jumping() {
 }
 
 function flying() {
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+		flyingFrames = 0;
+	}
+	
 	flyKeydown = false;
 	flyingFrames++;
-	if (flyingFrames > 15) {
+	if (flyingFrames > 30) {
 		player.state = playerState.Gliding;
 		flyingFrames = 0;
 	}
@@ -657,16 +699,16 @@ function flying() {
 }
 
 function inCameraView() {		
-	var x = player.x, y = player.y, radius = 500, radiusSqr = radius*radius;
+	var radiusSqr = 500 * 500;
 	
 	inView = [];	// clear array, splicing doesn't seem to work very well? 
-	for (i = allPlatforms.length - 1; i >= 0; --i) {
-		cx1 = x - allPlatforms[i].x1;
-		cy1 = y - allPlatforms[i].y1;
-		cx2 = x - allPlatforms[i].x2;
-		cy2 = y - allPlatforms[i].y2;
-		cx3 = x - allPlatforms[i].x3;
-		cy3 = y - allPlatforms[i].y3;
+	for (var i = allPlatforms.length - 1; i >= 0; --i) {
+		cx1 = player.x - allPlatforms[i].x1;
+		cy1 = player.y - allPlatforms[i].y1;
+		cx2 = player.x - allPlatforms[i].x2;
+		cy2 = player.y - allPlatforms[i].y2;
+		cx3 = player.x - allPlatforms[i].x3;
+		cy3 = player.y - allPlatforms[i].y3;
 		
 		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
 		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
@@ -683,29 +725,58 @@ function inCameraView() {
 			inView.push(allPlatforms[i]);
 		}
 	}
+	
+	radiusSqr = 700 * 700;
+	inViewEnemies = [];	// clear array, splicing doesn't seem to work very well? 
+	for (var i = allEnemies.length - 1; i >= 0; --i) {
+		cx1 = player.x - allEnemies[i].x;
+		cy1 = player.y - allEnemies[i].y;
+		
+		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
+		
+		// check if triangle vertex in circle
+		if (c1Sqr <= 0) {
+			inViewEnemies.push(allEnemies[i]);
+		}
+	}
 }
 
+// circle vs circle
+function collideObject(x, y, object, width, height) {
+	var radius1 = (width + height) >> 2,
+		radius2 = (object.width + object.height) >> 2,
+		radius = radius1 + radius2,
+		distance = Math.sqrt(((x - object.x) * (x - object.x)) + ((y - object.y) * (y - object.y)));
+	
+	if (distance < radius) {
+		return true;
+	}
+	
+	return false;
+}
+
+// circle vs triangle
 function collide(x, y, platform, width, height) {	
 	// using this: http://www.phatcode.net/articles.php?id=459
-	x1 = platform.x1;
-	x2 = platform.x2;
-	x3 = platform.x3;
-	y1 = platform.y1;
-	y2 = platform.y2;
-	y3 = platform.y3;
+	var x1 = platform.x1,
+		x2 = platform.x2,
+		x3 = platform.x3,
+		y1 = platform.y1,
+		y2 = platform.y2,
+		y3 = platform.y3,
 	
-	radius = (width + height) / 4;	// width and height should be the same but um yup
-	radiusSqr = radius*radius;
-	cx1 = x - x1;
-	cy1 = y - y1;
-	cx2 = x - x2;
-	cy2 = y - y2;
-	cx3 = x - x3;
-	cy3 = y - y3;
+		radius = (width + height) >> 2,	// width and height should be the same but um yup
+		radiusSqr = radius*radius,
+		cx1 = x - x1,
+		cy1 = y - y1,
+		cx2 = x - x2,
+		cy2 = y - y2,
+		cx3 = x - x3,
+		cy3 = y - y3,
 	
-	c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
-	c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
-	c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
+		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr,
+		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr,
+		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
 	
 	// check if triangle vertex in circle
 	if (c1Sqr <= 0)
@@ -716,14 +787,15 @@ function collide(x, y, platform, width, height) {
 		return true;
 	
 	// check if triangle edges in circle
-	ex1 = x2 - x1;
-	ey1 = y2 - y1;
-	ex2 = x3 - x2;
-	ey2 = y3 - y2;
-	ex3 = x1 - x3;
-	ey3 = y1 - y3;
+	var ex1 = x2 - x1,
+		ey1 = y2 - y1,
+		ex2 = x3 - x2,
+		ey2 = y3 - y2,
+		ex3 = x1 - x3,
+		ey3 = y1 - y3,	
+		k = cx1*ex1 + cy1*ey1,
+		len;
 	
-	k = cx1*ex1 + cy1*ey1;
 	if (k > 0) {
 		len = ex1*ex1 + ey1*ey1;
 		if (k < len) {
