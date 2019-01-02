@@ -1,15 +1,117 @@
+/*
+ *  TODO: Game runs slow because of canvas size, fix camera canvas
+ *  TODO: Show off iridescence: enter lit area, scales shine
+ */
+
 
 var player;
-var allPlatforms = [];
-var inView = [];
-var debug = true;
-var offsetX;
-var showCollision = false;
-var keydown = false;
-var flyKeydown = false, shootKeydown = false;
-var prevX = 0;
-var prevY = 0;
-var allProjectiles = [];
+var allPlatforms = [], inView = [], allProjectiles = [];
+var debug = false, showCollision = true;
+var keydown = false, flyKeydown = false, shootKeydown = false;
+var offsetX, prevX = 0, prevY = 0;
+var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0;
+
+var playerState = {
+		Falling:"falling",
+		Idling:"idling",
+		Running:"running",
+		Flying:"flying",
+		Gliding:"gliding",
+		Jumping:"jumping",
+		Landing:"landing",
+		Dying:"dying"
+};
+
+var key = {
+		down: 40,
+		right: 39,
+		left: 37,
+		a: 65,
+		s: 83
+};
+
+var camera = {
+		x1 : 0,
+		y1 : 0,
+		x2 : document.getElementById('wrapper').clientWidth,
+		y2 : document.getElementById('wrapper').clientHeight,
+		update : function() {
+			camera.x1 = player.x - document.getElementById('wrapper').clientWidth/2;
+			camera.y1 = player.y - document.getElementById('wrapper').clientHeight/2;
+			if (camera.x1 < 0) camera.x1 = 0;
+			if (camera.y1 < 0) camera.y1 = 0;
+			if (camera.x1 > 9000 - 700) camera.x1 = 9000 - 700;
+			if (camera.y1 > 2000 - 525) camera.y1 = 2000 - 525;
+			camera.x2 = camera.x1 + document.getElementById('wrapper').clientWidth;
+			camera.y2 = camera.y2 + document.getElementById('wrapper').clientHeight;
+		},
+		draw : function() {
+			var xPos = player.x;
+			var yPos = player.y;
+			ctx = gameArea.context;
+			
+			//ctx.clearRect(xPos - camera.x2/2, yPos - camera.y2/2, camera.x2, camera.y2);
+			ctx.setTransform(1,0,0,1,0,0);
+			ctx.clearRect(0,0, 700, 525);
+			ctx.translate(-camera.x1, -camera.y1);
+			//scrollWrapper(xPos - camera.x2/2, yPos - camera.y2/2);
+			drawLevel(xPos, yPos, camera.x2, camera.y2);
+			
+			player.draw();
+			for (i = 0; i < allProjectiles.length; ++i) {
+				allProjectiles[i].draw();
+			}
+		}
+};
+
+
+
+function updatePositions() {
+	var cameraX = camera.x1;
+	var cameraY = camera.y1;
+	document.getElementById("test1").innerHTML = camera.x1;
+	for (var i = 0; i < allPlatforms.length; ++i) {
+		allPlatforms[i].x1 += cameraX;
+		allPlatforms[i].y1 += cameraY;
+		allPlatforms[i].x2 += cameraX;
+		allPlatforms[i].y2 += cameraY;
+		allPlatforms[i].x3 += cameraX;
+		allPlatforms[i].y3 += cameraY;
+	}
+	
+}
+
+var gameArea = {
+	    canvas : document.getElementById('canvas'),
+	    start : function() {
+	        this.context = this.canvas.getContext("2d");
+	        this.interval = setInterval(updateGameArea, 0.02);
+	                
+	        // keyboard controls
+	        window.addEventListener('keydown', function (e) {
+	            gameArea.keys = (gameArea.keys || []);
+	            gameArea.keys[e.keyCode] = (e.type == 'keydown');
+	            if (!keydown) {
+	            	keydown = true;
+	            }
+	            if (e.repeat) {
+	            	keydown = false;
+	            }
+	            if (!flyKeydown && e.keyCode == key.a && keydown) {
+	            	flyKeydown = true;
+	            }
+	            if (!shootKeydown && e.keyCode == key.s && keydown) {
+	            	shootKeydown = true;
+	            }        
+	        });
+	        window.addEventListener('keyup', function (e) {
+	        	if (gameArea.keys) gameArea.keys[e.keyCode] = (e.type == 'keydown');  
+	            keydown = false;
+	            flyKeydown = false;
+	            shootKeydown = false;
+	        });
+	    }
+};
 
 function scrollWrapper(x, y) {
 	var wrapper = document.getElementById('wrapper');
@@ -19,159 +121,47 @@ function scrollWrapper(x, y) {
 
 function startGame() {
     gameArea.start();
-    player = new component(75, 75, "tempPlayer.png", 250, 600, "image");
+    player = new component(75, 75, "imgs/player/stand.png", 250, 0, "image");
     gameLevel0();
     inCameraView();
-}
-
-var gameArea = {
-    canvas : document.getElementById('canvas'),
-    start : function() {
-        this.context = this.canvas.getContext("2d");
-        this.interval = setInterval(updateGameArea, 0.02);
-                
-        // keyboard controls
-        window.addEventListener('keydown', function (e) {
-            gameArea.keys = (gameArea.keys || []);
-            gameArea.keys[e.keyCode] = (e.type == 'keydown');
-            if (!keydown) {
-            	keydown = true;
-            }
-            if (e.repeat) {
-            	keydown = false;
-            }
-            if (!flyKeydown && e.keyCode == key.a && keydown) {
-            	flyKeydown = true;
-            }
-            if (!shootKeydown && e.keyCode == key.s && keydown) {
-            	shootKeydown = true;
-            }        
-        });
-        window.addEventListener('keyup', function (e) {
-            gameArea.keys[e.keyCode] = (e.type == 'keydown');  
-            keydown = false;
-            flyKeydown = false;
-            shootKeydown = false;
-        });
-    }
-}
-
-var camera = {
-	draw : function() {
-		var viewX = document.getElementById('wrapper').clientWidth;
-		var viewY = document.getElementById('wrapper').clientHeight;
-		var xPos = player.x;
-		var yPos = player.y;
-		ctx = gameArea.context;
-		
-		ctx.clearRect(xPos - viewX/2, yPos - viewY/2, viewX, viewY);
-
-		scrollWrapper(xPos - viewX/2, yPos - viewY/2);
-		drawLevel(xPos, yPos, viewX, viewY);
-		
-		player.draw();
-		for (i = 0; i < allProjectiles.length; ++i) {
-			allProjectiles[i].draw();
-		}
-	}
-}
-
-function updateGameArea() {
-	var distance = 5;
-	
-	// update collision area
-	if ((player.x > prevX + distance) || (player.x < prevX - distance) || 
-			(player.y > prevY + distance) || (player.y < prevY - distance)) {
-			prevX = player.x;
-			prevY = player.y;
-			inCameraView();
-		}
-	
-	// update logic
-	controls();
-	player.updatePos();
-	for (var i = 0; i < allProjectiles.length; ++i) {
-		allProjectiles[i].updatePos();
-		if (debug) document.getElementById("test10").innerHTML = "i: " + i;
-		
-	}
-	
-	// render stuff
-	camera.draw();	
-}
-
-function inCameraView() {		
-	var x = player.x, y = player.y, radius = 500, radiusSqr = radius*radius;
-	
-	inView = [];
-	for (i = allPlatforms.length - 1; i >= 0; --i) {
-		cx1 = x - allPlatforms[i].x1;
-		cy1 = y - allPlatforms[i].y1;
-		cx2 = x - allPlatforms[i].x2;
-		cy2 = y - allPlatforms[i].y2;
-		cx3 = x - allPlatforms[i].x3;
-		cy3 = y - allPlatforms[i].y3;
-		
-		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
-		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
-		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
-		
-		// check if triangle vertex in circle
-		if (c1Sqr <= 0) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (c2Sqr <= 0) {
-			inView.push(allPlatforms[i]);
-		}
-		else if (c3Sqr <= 0){
-			inView.push(allPlatforms[i]);
-		}
-	}
 }
 
 function drawLevel(x, y, width, height) {
 	ctx = gameArea.context;
 
 	if (debug) document.getElementById("test1").innerHTML = inView.length + "/" + allPlatforms.length;
-	// x y = top left
-	// cw y = top right
-	// x ch = bottom left
-	// cw ch = bottom right
-	var x = player.x - document.getElementById('wrapper').clientWidth/2,
-		y = player.y - document.getElementById('wrapper').clientHeight/2,
-		cw = x + document.getElementById('wrapper').clientWidth,
-		ch = y + document.getElementById('wrapper').clientHeight;	
-	
-	if (y < 0) {
-		y = 0;
+	/*
+	if (camera.y1 < 0) {
+		camera.y1 = 0;
 	}
-	if (y > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
-		y = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
+	if (camera.y1 > document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight) {
+		camera.y1 = document.getElementById('canvas').clientHeight - document.getElementById('wrapper').clientHeight;
 	}
-	if (ch < document.getElementById('wrapper').clientHeight) {
-		ch = document.getElementById('wrapper').clientHeight;
+	if (camera.y2 < document.getElementById('wrapper').clientHeight) {
+		camera.y2 = document.getElementById('wrapper').clientHeight;
 	}
-	if (ch > document.getElementById('canvas').clientHeight) {
-		ch = document.getElementById('canvas').clientHeight;
+	if (camera.y2 > document.getElementById('canvas').clientHeight) {
+		camera.y2 = document.getElementById('canvas').clientHeight;
 	}
-	if (x < 0) {
-		x = 0;
+	if (camera.x1 < 0) {
+		camera.x1 = 0;
 	}
-	if (cw < document.getElementById('wrapper').clientWidth) {
-		cw = document.getElementById('wrapper').clientWidth;
+	if (camera.x2 < document.getElementById('wrapper').clientWidth) {
+		camera.x2 = document.getElementById('wrapper').clientWidth;
 	}
-	if (x > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
-		x = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
+	if (camera.x1 > document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth) {
+		camera.x1 = document.getElementById('canvas').clientWidth - document.getElementById('wrapper').clientWidth;
 	}
-	if (cw > document.getElementById('canvas').clientWidth) {
-		cw = document.getElementById('canvas').clientWidth;
+	if (camera.x2 > document.getElementById('canvas').clientWidth) {
+		camera.x2 = document.getElementById('canvas').clientWidth;
 	}
-
+*/
 	var background = new Image();
-	background.src = "level0Design.png";
-	ctx.drawImage(background, x, y, cw, ch, x, y, cw, ch);
+	background.src = "imgs/levels/level0.png";
+
+	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 	
-	// temporary, just to see collisions
+	// just to see collisions
 	if (showCollision) {
 		ctx.beginPath()
 		for (i = 0; i < inView.length; ++i) {
@@ -186,18 +176,7 @@ function drawLevel(x, y, width, height) {
 var reader = new XMLHttpRequest() || new ActiveXObect('MSXML2.XMLHTTP');
 
 function gameLevel0() {
-    var background = new Image(),
-    	lines,
-    	platform, l1, l2, l3,
-    	textFile,
-    	allText;
-    
-    // temporary background for drawing level0
-    background.src = "level0Design.png";
-    background.onload = function() {
-    	ctx = gameArea.context;
-    	ctx.drawImage(background,0,0);
-    }
+    var background = new Image();
     
     loadFile();	// change name of file depending on level, later	
 }
@@ -217,24 +196,41 @@ function displayContents() {
 			l2 = lines[i+1].split(" ");
 			l3 = lines[i+2].split(" ");
 
-			platform = {x1:l1[0], y1:l1[1],
-						x2:l2[0], y2:l2[1],
-						x3:l3[0], y3:l3[1]};
+			platform = {x1:Number(l1[0]), y1:Number(l1[1]),
+						x2:Number(l2[0]), y2:Number(l2[1]),
+						x3:Number(l3[0]), y3:Number(l3[1])};
 			
 			allPlatforms.push(platform);	
 		}
 	}
 }
 
-var playerState = {
-	Falling:"falling",
-	Idling:"idling",
-	Running:"running",
-	Flying:"flying",
-	Gliding:"gliding",
-	Jumping:"jumping",
-	Landing:"landing",
-	Dying:"dying"
+function updateGameArea() {
+	var distance = 200;
+	camera.update();
+	updatePositions();
+	// update what's in or not in camera's view
+	if ((player.x > prevX + distance) || (player.x < prevX - distance) || 
+			(player.y > prevY + distance) || (player.y < prevY - distance)) {
+			prevX = player.x;
+			prevY = player.y;
+			inCameraView();
+	}
+	
+	// update logic
+	controls();
+	player.updatePos();
+	if (debug) document.getElementById("test10").innerHTML = "projectile length: " + allProjectiles.length;
+	for (var i = 0; i < allProjectiles.length; ++i) {
+		allProjectiles[i].updatePos();
+		
+		if (allProjectiles[i].shouldDie) {
+			delete allProjectiles.splice(i, 1);
+		}
+	}
+	
+	// render stuff
+	camera.draw();	
 }
 
 function projectile(width, height, colour, x, y, owner, bounces, direction, startingSpeed) {
@@ -254,12 +250,24 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.x = x;
 	this.y = y;
 	
-	
 	this.numBounce = 0;
+	this.lifeSpan = 120;	// lives for how many frames
+	this.shouldDie = false;
 	
 	this.updatePos = function() {
+		this.lifeSpan--;
+		if (this.lifeSpan <= 0) {
+			this.shouldDie = true;
+			return;
+		}
+		
 		this.gravitySpeed += this.gravity;
+		
 		this.detectCollision();
+		if (this.numBounce > 5) {
+			this.shouldDie = true;
+		}
+		
 		this.x += this.speedX;
 		this.y += this.gravitySpeed;
 	}
@@ -268,7 +276,6 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 		ctx = gameArea.context;
 		ctx.fillStyle = colour;
 		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
-		if (debug) document.getElementById("test10").innerHTML = "direction: " + direction;
 	}
 	
 	this.detectCollision = function() {
@@ -279,31 +286,30 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// check just y collision
 			if (collide(this.x, this.y + this.gravitySpeed, inView[i], this.width, this.height)) {				
 				this.gravitySpeed *= -0.9;
-				if (this.bounces) this.numBounce++;
+				if (this.bounces) {
+					this.numBounce++;
+				}
 				break;
 			}
 		}
 		
 		// x collision
-		/*
 		for (i = 0; i < inView.length; ++i) {
 			// bounce up slopes (later)
-			/*
 			for (j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inView[i], this.width, this.height)) {
+					this.gravitySpeed *= -0.9;
 					break;
 				}
 			}
-			*/
 			
 			// check just x collision
-			/*
 			if (collide(this.x + this.speedX, this.y, inView[i], this.width, this.height)) {
-				// die on hit?
+				this.speedX *= -0.7;
+				this.numBounce++;
 			}	
 		}
-		*/
 	}
 }
 
@@ -324,7 +330,7 @@ function component(width, height, colour, x, y, type) {
 	
 	this.gravity = 0.1;
 	this.gravitySpeed = 0;
-	this.maxGravitySpeed = 5;
+	this.maxGravitySpeed = 10;
 	this.maxFlySpeed = -3;
 	
 	this.accelInc = 0.1;
@@ -335,7 +341,7 @@ function component(width, height, colour, x, y, type) {
 	this.hitGround = false;
 	
 	this.shootProjectile = function() {
-		if (allProjectiles.length > 20) {
+		if (allProjectiles.length >= 5) {
 			return;
 		}
 		var col = "Red"
@@ -383,10 +389,10 @@ function component(width, height, colour, x, y, type) {
 	}
 	
 	this.hitEdge = function () {
-		if (this.y + this.gravitySpeed > gameArea.canvas.height || this.y + this.gravitySpeed < 0) {
+		if (this.y + this.gravitySpeed > 2000 || this.y + this.gravitySpeed < 0) {
 			this.gravitySpeed = 0;
 		}
-		if (this.x + this.speedX > gameArea.canvas.width || this.x + this.speedX < 0) {
+		if (this.x + this.speedX > 10000 || this.x + this.speedX < 0) {
 			this.speedX = 0;
 		}
 	}
@@ -475,13 +481,6 @@ function component(width, height, colour, x, y, type) {
 	}
 }
 
-var key = {
-		down: 40,
-		right: 39,
-		left: 37,
-		a: 65,
-		s: 83
-};
 
 
 function controls() {
@@ -501,15 +500,30 @@ function controls() {
 	// slow down if player stopped pressing key
 	if (gameArea.keys && !(gameArea.keys[key.left] && gameArea.keys[key.right])) {
 		if (player.accel < 0) {
-			player.accel += player.accelDec;
+			if (player.state == playerState.Gliding || player.state == playerState.Flying) {
+				player.accel += player.accelDec*0.1;
+			} else if (player.state == playerState.Falling){
+				player.accel += player.accelDec*0.5;
+			} else {
+				player.accel += player.accelDec;
+			}
 		}
 		if (player.accel > 0) {
-			player.accel -= player.accelDec;
+			
+			if (player.state == playerState.Gliding || player.state == playerState.Flying) {
+				player.accel -= player.accelDec*0.1;
+			} else if (player.state == playerState.Falling){
+				player.accel -= player.accelDec*0.5;
+			} else {
+				player.accel -= player.accelDec;
+			}
 		}
 		if (player.accel > -player.accelDec && player.accel < player.accelDec) {
 			player.accel = 0;
 		}
 	}
+	
+	// prevent plaer moving too fast
 	if (player.accel > player.maxAccel) {
 		player.accel = player.maxAccel;
 	}
@@ -537,7 +551,7 @@ function controls() {
 		if (gameArea.keys && gameArea.keys[key.a]) {
 			player.state = playerState.Jumping;
 		}
-		if (!(gameArea.keys[key.right] || gameArea.keys[key.left])) {
+		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			player.state = playerState.Idling;
 		}
 
@@ -546,36 +560,22 @@ function controls() {
 		jumping();
 		break;
 	case playerState.Flying:
-		if (gameArea.keys[key.a] && flyKeydown) {
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 			flyingFrames = 0;
 		}
 		flying();
 		break;
 	case playerState.Gliding:
 		gliding();
-		if (gameArea.keys[key.a] && flyKeydown) {
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 			player.state = playerState.Flying;
 		}
-		if (gameArea.keys[key.down]) {
+		if (gameArea.keys && gameArea.keys[key.down]) {
 			player.state = playerState.Falling;
 		}
 		break;
 	case playerState.Falling:
-		player.gravity = 0.1;
-		
-		if (debug) document.getElementById("test6").innerHTML = "";
-		if (gameArea.keys[key.a] && flyKeydown) {
-			player.state = playerState.Flying;
-		}
-		if (player.gravitySpeed == 0) {
-			if (hitGround()) {
-				if (debug) document.getElementById("test6").innerHTML = "GROUND WAS HIT";
-				player.state = playerState.Landing;
-			}
-			else {
-				player.state = playerState.Idling;
-			}
-		}
+		falling();
 		break;
 	case playerState.Landing:
 		landing();
@@ -585,16 +585,29 @@ function controls() {
 	if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ", accel: " + player.accel;
 }
 
-var flyingFrames = 0;
-var jumpingFrames = 0;
-var landingFrames = 0;
-
 function hitGround() {
 	if (player.gravitySpeed == 0 && player.hitGround) {
 		player.hitGround = false;
 		return true;
 	}
 	return false;
+}
+
+function falling() {
+	player.gravity = 0.1;
+	if (debug) document.getElementById("test6").innerHTML = "";
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+		player.state = playerState.Flying;
+	}
+	if (player.gravitySpeed == 0) {
+		if (hitGround()) {
+			if (debug) document.getElementById("test6").innerHTML = "GROUND WAS HIT";
+			player.state = playerState.Landing;
+		}
+		else {
+			player.state = playerState.Idling;
+		}
+	}
 }
 
 function landing() {
@@ -639,7 +652,36 @@ function flying() {
 	}
 	else {
 		player.gravity = -0.1;
-		player.gravitySpeed = -1;
+		player.gravitySpeed = -2;
+	}
+}
+
+function inCameraView() {		
+	var x = player.x, y = player.y, radius = 500, radiusSqr = radius*radius;
+	
+	inView = [];	// clear array, splicing doesn't seem to work very well? 
+	for (i = allPlatforms.length - 1; i >= 0; --i) {
+		cx1 = x - allPlatforms[i].x1;
+		cy1 = y - allPlatforms[i].y1;
+		cx2 = x - allPlatforms[i].x2;
+		cy2 = y - allPlatforms[i].y2;
+		cx3 = x - allPlatforms[i].x3;
+		cy3 = y - allPlatforms[i].y3;
+		
+		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
+		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
+		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
+		
+		// check if triangle vertex in circle
+		if (c1Sqr <= 0) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (c2Sqr <= 0) {
+			inView.push(allPlatforms[i]);
+		}
+		else if (c3Sqr <= 0){
+			inView.push(allPlatforms[i]);
+		}
 	}
 }
 
