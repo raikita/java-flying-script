@@ -1,17 +1,26 @@
 /*
  *  TODO: Show off iridescence: enter lit area, scales shine
+ *  TODO: Level Design
+ *  TODO: 2 more types of enemies: moving and shooting if seen, moving only
+ *  TODO: Animations
+ *  TODO: Start screen
+ *  TODO: Cloud collision, slow movement slightly
+ *  TODO: Sliding state: when x is moving but key not pressed
+ *  
  */
 
 
 var player;
+var platformType = "";
 var allPlatforms = [], inViewPlatforms = [], 
 	allProjectiles = [], 
 	allEnemies = [], inViewEnemies = [], 
 	allCloudPlatforms = [], inViewCloudPlatforms = [];
-var debug = true, showCollision = false;
+var debug = false, showCollision = false;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var offsetX, prevX = 0, prevY = 0;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
+var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 
 var playerState = {
 		Falling:"falling",
@@ -36,17 +45,21 @@ var key = {
 var camera = {
 		x1 : 0,
 		y1 : 0,
-		x2 : document.getElementById('wrapper').clientWidth,
-		y2 : document.getElementById('wrapper').clientHeight,
+		x2 : document.getElementById('canvas').clientWidth,
+		y2 : document.getElementById('canvas').clientHeight,
 		update : function() {
-			camera.x1 = player.x - document.getElementById('wrapper').clientWidth/2;
-			camera.y1 = player.y - document.getElementById('wrapper').clientHeight/2;
+			camera.x1 = player.x - document.getElementById('canvas').clientWidth/2;
+			camera.y1 = player.y - document.getElementById('canvas').clientHeight/2;
 			if (camera.x1 < 0) camera.x1 = 0;
 			if (camera.y1 < 0) camera.y1 = 0;
-			if (camera.x1 > 10000 - 700) camera.x1 = 10000 - 700;
-			if (camera.y1 > 2000 - 525) camera.y1 = 2000 - 525;
-			camera.x2 = camera.x1 + document.getElementById('wrapper').clientWidth;
-			camera.y2 = camera.y2 + document.getElementById('wrapper').clientHeight;
+			if (camera.x1 > levelLimitsx - document.getElementById('canvas').clientWidth) {
+				camera.x1 = levelLimitsx - document.getElementById('canvas').clientWidth;
+			}
+			if (camera.y1 > levelLimitsy - document.getElementById('canvas').clientHeight) {
+				camera.y1 = levelLimitsy - document.getElementById('canvas').clientHeight;
+			}
+			camera.x2 = camera.x1 + document.getElementById('canvas').clientWidth;
+			camera.y2 = camera.y2 + document.getElementById('canvas').clientHeight;
 		}
 };
 
@@ -84,17 +97,18 @@ var gameArea = {
 
 function startGame() {
     gameArea.start();
-    player = new player(75, 75, "imgs/player/stand.png", 250, 500, "image");
-    gameLevel0();
+    gameLevel1();
+    player = new player(75, 75, "imgs/player/stand.png", playerStartx, playerStarty, "image");
     inCameraView();
 }
 
 function drawLevel(x, y, width, height) {
 	var ctx = gameArea.context, background = new Image();
+
+	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length + 
+	"<br>player.x: " + player.x + "<br>player.y: " + player.y;
 	
-	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length;
-	
-	background.src = "imgs/levels/level0.png";
+	background.src = "imgs/levels/level1.png";
 
 	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 	
@@ -106,16 +120,23 @@ function drawLevel(x, y, width, height) {
 				ctx.lineTo(inViewPlatforms[i].x2, inViewPlatforms[i].y2);
 				ctx.lineTo(inViewPlatforms[i].x3, inViewPlatforms[i].y3);
 		}
-		ctx.stroke();
+		ctx.fill();
 	}
 }
 
-var reader = new XMLHttpRequest() || new ActiveXObect('MSXML2.XMLHTTP');
 
-function gameLevel0() {
+var files;
+
+function gameLevel1() {
     var background = new Image();
+    levelLimitsx = 8192, levelLimitsy = 2048;
+    playerStartx = 190, playerStarty = 356;
+    platformType = "ground";
     
-    loadFile();	// change name of file depending on level, later
+    files = ['level1-ground.txt',
+    		 'level1-clouds.txt'];
+    
+    loadFile();
     
     spawnEnemy(1, 500, 1220);
     spawnEnemy(1, 700, 1220);
@@ -123,27 +144,28 @@ function gameLevel0() {
 }
 
 function loadFile() {
-	reader.open('get', 'level0.txt', true);
-	reader.onreadystatechange = displayContents;
-	reader.send(null);
-}
+	var requests = new Array (files.length);
+	for (let j = 0; j < files.length; ++j) {
+		requests[j] = new XMLHttpRequest();
+		requests[j].open('get', files[j], true);
+		
+		var i, lines, l1, l2, l3, platform;
 
-function displayContents() {
-	var i, lines, l1, l2, l3, platform;
-	if (reader.readyState == 4) {
-		lines = reader.responseText.split("\n");
-		for (i = 0; i < lines.length; i += 3) {
-			if (lines.length < i + 1) break;
-			l1 = lines[i].split(" ");
-			l2 = lines[i+1].split(" ");
-			l3 = lines[i+2].split(" ");
+		requests[j].onload = function() {
+			lines = requests[j].responseText.split("\n");
+			for (var i = 0; i < lines.length; i += 3) {
+				l1 = lines[i].split(" ");
+				l2 = lines[i+1].split(" ");
+				l3 = lines[i+2].split(" ");
 
-			platform = {x1:Number(l1[0]), y1:Number(l1[1]),
-						x2:Number(l2[0]), y2:Number(l2[1]),
-						x3:Number(l3[0]), y3:Number(l3[1])};
-			
-			allPlatforms.push(platform);	
+				platform = {x1:Number(l1[0]), y1:Number(l1[1]),
+							x2:Number(l2[0]), y2:Number(l2[1]),
+							x3:Number(l3[0]), y3:Number(l3[1])};
+				if (j == 0) allPlatforms.push(platform);
+				if (j == 1) allCloudPlatforms.push(platform);
+			}
 		}
+		requests[j].send(null);
 	}
 }
 
@@ -157,17 +179,11 @@ function updateGameArea() {
 		return;
 	}
 	
-	var distance = 200;	// how far player must go before updating what's in camera's view for collisions
+	var distance = 0;	// how far player must go before updating what's in camera's view for collisions
 	
 	// update camera's position
 	camera.update();
-	// update what's in or not in camera's view
-	if ((player.x > prevX + distance) || (player.x < prevX - distance) || 
-			(player.y > prevY + distance) || (player.y < prevY - distance)) {
-			prevX = player.x;
-			prevY = player.y;
-			inCameraView();
-	}
+	inCameraView();
 	
 	// update logic
 	controls();
@@ -197,7 +213,7 @@ function updateGameArea() {
 	var ctx = gameArea.context;
 
 	ctx.setTransform(1,0,0,1,0,0);
-	ctx.clearRect(0,0, 700, 525);
+	ctx.clearRect(0,0, document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientHeight);
 	ctx.translate(-camera.x1, -camera.y1);
 	
 	drawLevel(player.x, player.y, camera.x2, camera.y2);
@@ -379,7 +395,10 @@ function player(width, height, colour, x, y, type) {
 	this.hitGround = false;
 	this.hitPoints = 20;
 	this.invincible = 0;
-	this.invincibleFrames = 180;	
+	this.invincibleFrames = 180;
+	
+	this.slope = 0; // 0 = no slope, 1 = slope up, 2 = slope down
+	this.slopeAngle = 0;
 	
 	this.shootProjectile = function() {
 		if (allProjectiles.length >= 5) {
@@ -401,9 +420,10 @@ function player(width, height, colour, x, y, type) {
 		}
 		
 		this.speedX += this.accel;			
-		this.detectCollision();
+		
 		this.hitEdge();
-		this.y += this.gravitySpeed;
+		this.detectCollision();
+		//this.y += this.gravitySpeed;
 		this.x += this.speedX;
 		
 		if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ",<br> accel:  " + player.accel;
@@ -412,6 +432,14 @@ function player(width, height, colour, x, y, type) {
 	
 	this.draw = function () {
 		var ctx = gameArea.context;
+		if (this.slope > 0) {
+			ctx.save();
+			ctx.translate(this.x, this.y);
+			if (this.slope == 1) ctx.rotate((this.faceRight ? -1 : 1) * this.slopeAngle * Math.PI / 180);
+			if (this.slope == 2) ctx.rotate((this.faceRight ? 1 : -1) * this.slopeAngle * Math.PI / 180);
+			ctx.translate(-this.x, -this.y)
+		}
+		
 		if (type == "image") {
 			if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
 				if (this.faceRight) {
@@ -426,29 +454,34 @@ function player(width, height, colour, x, y, type) {
 			ctx.fillStyle = colour;
 			ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
 		}
+		if (this.slope > 0) {
+			ctx.restore();
+		}
 	}
 	
 	this.hitEdge = function () {
-		if (this.y + this.gravitySpeed > 2000) {
+		if (this.y + this.gravitySpeed > levelLimitsy) {
 			this.state = playerState.Dying;
 			return;
 		}
 		if (this.y + this.gravitySpeed < 0) {
 			this.gravitySpeed = 0;
 		}
-		if (this.x + this.speedX > 10000 || this.x + this.speedX < 0) {
+		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
 			this.speedX = 0;
 		}
 	}
 	
 	
 	this.detectCollision = function() {
-		var slopeMax = 5, slopeFall = 0.1;
+		var slopeMax = 5, slopeFall = 0.09;
+		this.slopeAngle = 0;
 		// slopeFall: The lower the number, the more steep cliff has to be to slide
+		this.slope = 0;
 
-		if (debug) document.getElementById("test4").innerHTML = "";
-		if (debug) document.getElementById("test3").innerHTML = "";
-		if (debug) document.getElementById("test5").innerHTML = "";
+		if (debug) document.getElementById("test4").innerHTML = "..";
+		if (debug) document.getElementById("test3").innerHTML = "..";
+		if (debug) document.getElementById("test5").innerHTML = "..";
 		
 		// if hit by enemy
 		if (this.state != playerState.Ouching && this.invincible <= 0) {
@@ -471,14 +504,17 @@ function player(width, height, colour, x, y, type) {
 		for (var i = 0; i < inViewPlatforms.length; ++i) {			
 			// check just y collision
 			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
+				
 				// check if can slide down
 				if (this.y + this.gravitySpeed > this.y) {
-					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
+					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed*2, inViewPlatforms[i], this.width, this.height)) {
 						this.x -= slopeFall;
+						this.y += this.gravitySpeed*2;
 						break;
 					}
-					else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
+					else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed*2, inViewPlatforms[i], this.width, this.height)) {
 						this.x += slopeFall;
+						this.y += this.gravitySpeed*2;
 						break;
 					}
 				}
@@ -500,38 +536,63 @@ function player(width, height, colour, x, y, type) {
 				break;
 			}
 		}
+		this.y += this.gravitySpeed;
+		
+		
 		// x collision
 		for (var i = 0; i < inViewPlatforms.length; ++i) {
 			// check slope collision up
-			for (var j = 1; j < slopeMax; ++j) {
-				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height)) {
-					this.y -= j;
-					if (debug) document.getElementById("test3").innerHTML = "slope Up ";
-					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;
-					}
-					break;
+			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
+				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
+				collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)&&
+				collide(this.x + this.speedX, this.y - 3, inViewPlatforms[i], this.width, this.height)&&
+				!collide(this.x + this.speedX, this.y - 4, inViewPlatforms[i], this.width, this.height)) {
+				this.y -= 4;
+				this.slope = 1;
+				this.slopeAngle = 40;
+				if (debug) document.getElementById("test3").innerHTML = "slope Up 3";
+				if (this.state == playerState.Gliding) {
+					this.state = playerState.Falling;
 				}
 			}
-			
-			// check slope collision down
-			for (var j = 1; j < slopeMax; ++j) {
-				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-					!collide(this.x + this.speedX, this.y + j, inViewPlatforms[i], this.width, this.height)) {
-					this.y += j;
-					if (debug) document.getElementById("test3").innerHTML = "slope Down ";
-					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;
-					}
-					break;
+			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
+				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
+				collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)&&
+				!collide(this.x + this.speedX, this.y - 3, inViewPlatforms[i], this.width, this.height)) {
+				this.y -= 3;
+				this.slope = 1;
+				this.slopeAngle = 30;
+				if (debug) document.getElementById("test3").innerHTML = "slope Up 3";
+				if (this.state == playerState.Gliding) {
+					this.state = playerState.Falling;
+				}
+			}
+			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
+				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
+				!collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)) {
+				this.y -= 2;
+				this.slope = 1;
+				this.slopeAngle = 20;
+				if (debug) document.getElementById("test3").innerHTML = "slope Up 2";
+				if (this.state == playerState.Gliding) {
+					this.state = playerState.Falling;
+				}
+			}
+			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
+				!collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)) {
+				--this.y;
+				this.slope = 1;
+				this.slopeAngle = 10;
+				if (debug) document.getElementById("test3").innerHTML = "slope Up 1";
+				if (this.state == playerState.Gliding) {
+					this.state = playerState.Falling;
 				}
 			}
 			
 			// check just x collision
 			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height)) {
 				this.speedX *= -1;
-				this.accel *= -0.1;
+				this.accel = 0;
 				if (this.state == playerState.Gliding) {
 					this.state = playerState.Falling;
 				}
@@ -752,35 +813,17 @@ function flying() {
 }
 
 function inCameraView() {		
-	var radiusSqr = 500 * 500;
+	// radius larger for enemies and objects
+	var radiusSqr = (document.getElementById('canvas').clientWidth * document.getElementById('canvas').clientWidth) << 1;
 	
-	inViewPlatforms = [];	// clear array, splicing doesn't seem to work very well? 
+	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
-		cx1 = player.x - allPlatforms[i].x1;
-		cy1 = player.y - allPlatforms[i].y1;
-		cx2 = player.x - allPlatforms[i].x2;
-		cy2 = player.y - allPlatforms[i].y2;
-		cx3 = player.x - allPlatforms[i].x3;
-		cy3 = player.y - allPlatforms[i].y3;
-		
-		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
-		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr;
-		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
-		
-		// check if triangle vertex in circle
-		if (c1Sqr <= 0) {
-			inViewPlatforms.push(allPlatforms[i]);
-		}
-		else if (c2Sqr <= 0) {
-			inViewPlatforms.push(allPlatforms[i]);
-		}
-		else if (c3Sqr <= 0){
+		if (collide(player.x, player.y, allPlatforms[i], document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientWidth)) {
 			inViewPlatforms.push(allPlatforms[i]);
 		}
 	}
-	
-	radiusSqr = 700 * 700;
-	inViewEnemies = [];	// clear array, splicing doesn't seem to work very well? 
+
+	inViewEnemies = [];
 	for (var i = allEnemies.length - 1; i >= 0; --i) {
 		cx1 = player.x - allEnemies[i].x;
 		cy1 = player.y - allEnemies[i].y;
