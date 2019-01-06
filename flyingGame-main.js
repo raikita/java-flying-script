@@ -4,23 +4,22 @@
  *  TODO: 2 more types of enemies: moving and shooting if seen, moving only
  *  TODO: Animations
  *  TODO: Start screen
- *  TODO: Cloud collision, slow movement slightly
  *  TODO: Sliding state: when x is moving but key not pressed
  *  
  */
 
 
 var player;
-var platformType = "";
 var allPlatforms = [], inViewPlatforms = [], 
 	allProjectiles = [], 
 	allEnemies = [], inViewEnemies = [], 
 	allCloudPlatforms = [], inViewCloudPlatforms = [];
-var debug = false, showCollision = false;
+var debug = true, showCollision = false;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var offsetX, prevX = 0, prevY = 0;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
+var worldGravity = 0.07;
 
 var playerState = {
 		Falling:"falling",
@@ -98,17 +97,18 @@ var gameArea = {
 function startGame() {
     gameArea.start();
     gameLevel1();
-    player = new player(75, 75, "imgs/player/stand.png", playerStartx, playerStarty, "image");
+    player = new player(80, 80, "imgs/player/idle.png", playerStartx, playerStarty, "image");
     inCameraView();
 }
 
-function drawLevel(x, y, width, height) {
+function drawLevel(x, y, width, height, type) {
 	var ctx = gameArea.context, background = new Image();
 
 	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length + 
 	"<br>player.x: " + player.x + "<br>player.y: " + player.y;
 	
-	background.src = "imgs/levels/level1.png";
+	if (type == "ground") {background.src = "imgs/levels/level1-ground.png";}
+	if (type == "clouds") {background.src = "imgs/levels/level1-clouds.png";}
 
 	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 	
@@ -118,24 +118,22 @@ function drawLevel(x, y, width, height) {
 		for (i = 0; i < inViewPlatforms.length; ++i) {
 				ctx.moveTo(inViewPlatforms[i].x1, inViewPlatforms[i].y1);
 				ctx.lineTo(inViewPlatforms[i].x2, inViewPlatforms[i].y2);
-				ctx.lineTo(inViewPlatforms[i].x3, inViewPlatforms[i].y3);
+				ctx.lineTo(inViewPlatforms[i].x3, inViewPlatforms[i].y3);	
 		}
 		ctx.fill();
 	}
 }
-
 
 var files;
 
 function gameLevel1() {
     var background = new Image();
     levelLimitsx = 8192, levelLimitsy = 2048;
-    playerStartx = 190, playerStarty = 356;
-    platformType = "ground";
+    playerStartx = 190, playerStarty = 331;
     
     files = ['level1-ground.txt',
     		 'level1-clouds.txt'];
-    
+  
     loadFile();
     
     spawnEnemy(1, 500, 1220);
@@ -147,22 +145,23 @@ function loadFile() {
 	var requests = new Array (files.length);
 	for (let j = 0; j < files.length; ++j) {
 		requests[j] = new XMLHttpRequest();
-		requests[j].open('get', files[j], true);
+		requests[j].open('GET', files[j], true);
 		
-		var i, lines, l1, l2, l3, platform;
-
+		var i, lines, l1, l2, l3, platform, platformType;
+		
 		requests[j].onload = function() {
 			lines = requests[j].responseText.split("\n");
 			for (var i = 0; i < lines.length; i += 3) {
 				l1 = lines[i].split(" ");
 				l2 = lines[i+1].split(" ");
 				l3 = lines[i+2].split(" ");
-
+				if (j == 0) platformType = "ground";
+				if (j == 1) platformType = "cloud";
 				platform = {x1:Number(l1[0]), y1:Number(l1[1]),
 							x2:Number(l2[0]), y2:Number(l2[1]),
-							x3:Number(l3[0]), y3:Number(l3[1])};
-				if (j == 0) allPlatforms.push(platform);
-				if (j == 1) allCloudPlatforms.push(platform);
+							x3:Number(l3[0]), y3:Number(l3[1]),
+							type: platformType};
+				allPlatforms.push(platform);
 			}
 		}
 		requests[j].send(null);
@@ -216,7 +215,7 @@ function updateGameArea() {
 	ctx.clearRect(0,0, document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientHeight);
 	ctx.translate(-camera.x1, -camera.y1);
 	
-	drawLevel(player.x, player.y, camera.x2, camera.y2);
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "ground");
 	
 	for (var i = 0; i < inViewEnemies.length; ++i) {
 		inViewEnemies[i].draw();
@@ -226,6 +225,7 @@ function updateGameArea() {
 		allProjectiles[i].draw();
 	}
 	player.draw();
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "clouds");
 	
 }
 
@@ -244,7 +244,7 @@ function enemy(image, width, height, colour, x, y, hitPoints) {
 	this.height = height;
 	
 	this.speedX = 0;
-	this.gravity = 0.1;
+	this.gravity = worldGravity;
 	this.gravitySpeed = 0;
 	
 	this.x = x;
@@ -296,7 +296,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.startingSpeed = startingSpeed;
 	this.direction = direction;
 	this.speedX = direction ? 3 + this.startingSpeed : -3 + this.startingSpeed;
-	this.gravity = 0.1;
+	this.gravity = worldGravity;
 	this.gravitySpeed = -2;
 	this.owner = owner;		// true if player's, false if enemy's
 	this.bounces = bounces; // if it bounces or not, dies after x amount of bounces
@@ -374,23 +374,26 @@ function player(width, height, colour, x, y, type) {
 		this.image.src = colour;
 	}
 	
+	this.colAdj = 20; // adjust for collision area (smaller than image)
 	this.faceRight = true;
 	this.state = playerState.Idling;
-	this.width = width;
-	this.height = height;
+	this.width = width-this.colAdj;
+	this.height = height-this.colAdj;
 	this.speedX = 0;
 	this.x = x;
 	this.y = y;
 	
-	this.gravity = 0.1;
+	this.gravity = worldGravity;
 	this.gravitySpeed = 0;
-	this.maxGravitySpeed = 10;
+	this.maxGravitySpeed = 5;
 	this.maxFlySpeed = -3;
+	this.maxWingBeats = 5;
+	this.wingBeats = 0;
 	
 	this.accelInc = 0.1;
-	this.accelDec = 0.1;
+	this.accelDec = 0.05;
 	this.accel = 0;
-	this.maxAccel = 6;
+	this.maxAccel = 2;
 	
 	this.hitGround = false;
 	this.hitPoints = 20;
@@ -443,11 +446,13 @@ function player(width, height, colour, x, y, type) {
 		if (type == "image") {
 			if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
 				if (this.faceRight) {
-					ctx.drawImage(this.image, this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+					ctx.drawImage(this.image, this.x - (this.width+this.colAdj)/2, this.y - (this.height+this.colAdj)/2, this.width+this.colAdj, this.height+this.colAdj);
 				} else {
+					ctx.save();
 					ctx.scale(-1, 1);
-					ctx.drawImage(this.image, -this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+					ctx.drawImage(this.image, -this.x - (this.width+this.colAdj)/2, this.y - (this.height+this.colAdj)/2, this.width+this.colAdj, this.height+20);
 					ctx.setTransform(1, 0, 0, 1, 0, 0);
+					ctx.restore();
 				}
 			}
 		} else {
@@ -464,8 +469,8 @@ function player(width, height, colour, x, y, type) {
 			this.state = playerState.Dying;
 			return;
 		}
-		if (this.y + this.gravitySpeed < 0) {
-			this.gravitySpeed = 0;
+		if (this.y + this.gravitySpeed < -200) {
+			this.state = playerState.Falling;
 		}
 		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
 			this.speedX = 0;
@@ -474,9 +479,9 @@ function player(width, height, colour, x, y, type) {
 	
 	
 	this.detectCollision = function() {
-		var slopeMax = 5, slopeFall = 0.09;
+		var slopeMax = 3,
+		slopeFall = 0.1; // slopeFall: The lower the number, the more steep cliff has to be to slide
 		this.slopeAngle = 0;
-		// slopeFall: The lower the number, the more steep cliff has to be to slide
 		this.slope = 0;
 
 		if (debug) document.getElementById("test4").innerHTML = "..";
@@ -494,28 +499,26 @@ function player(width, height, colour, x, y, type) {
 					}
 					else {
 						this.state = playerState.Dying;
-					}
-								
+					}			
 				}
 			}
 		}
 		
 		// y collision
-		for (var i = 0; i < inViewPlatforms.length; ++i) {			
+		for (var i = 0; i < inViewPlatforms.length; ++i) {	
+			
 			// check just y collision
 			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
 				
 				// check if can slide down
-				if (this.y + this.gravitySpeed > this.y) {
-					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed*2, inViewPlatforms[i], this.width, this.height)) {
+				if (this.y + this.gravitySpeed > this.y && inViewPlatforms[i].type == "ground") {
+					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
 						this.x -= slopeFall;
-						this.y += this.gravitySpeed*2;
-						break;
+						this.y += this.gravitySpeed;
 					}
-					else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed*2, inViewPlatforms[i], this.width, this.height)) {
+					else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
 						this.x += slopeFall;
-						this.y += this.gravitySpeed*2;
-						break;
+						this.y += this.gravitySpeed;
 					}
 				}
 				
@@ -527,76 +530,87 @@ function player(width, height, colour, x, y, type) {
 					this.hitGround = false;
 				}
 				
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
+				if (inViewPlatforms[i].type == "ground") {
+					this.gravitySpeed = 0;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
+					if (debug) document.getElementById("test4").innerHTML = "y Ground Collision ";
 				}
-				
-				this.gravitySpeed = 0;
-				if (debug) document.getElementById("test4").innerHTML = "y Collision ";
+				else if (inViewPlatforms[i].type == "cloud") {
+					if (this.gravitySpeed > 0) {
+						this.gravitySpeed *= 0.5;
+					}
+					this.wingBeats = 0;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;	// making it a different type of falling animation
+					}
+					if (debug) document.getElementById("test4").innerHTML = "y Cloud Collision ";
+				}
 				break;
 			}
 		}
 		this.y += this.gravitySpeed;
 		
-		
+		var inc = 0.1;
 		// x collision
 		for (var i = 0; i < inViewPlatforms.length; ++i) {
-			// check slope collision up
-			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
-				collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)&&
-				collide(this.x + this.speedX, this.y - 3, inViewPlatforms[i], this.width, this.height)&&
-				!collide(this.x + this.speedX, this.y - 4, inViewPlatforms[i], this.width, this.height)) {
-				this.y -= 4;
-				this.slope = 1;
-				this.slopeAngle = 40;
-				if (debug) document.getElementById("test3").innerHTML = "slope Up 3";
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
+			// check if can move up or down slopes
+			if (inViewPlatforms[i].type == "ground") {
+				// slope up
+				for (var n = 0; n <= slopeMax; n += inc) {
+					if (collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
+						continue;
+					}
+					if (!collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
+						this.y -= n;
+						this.slope = 1;
+						this.slopeAngle = n * 10;
+						if (debug) document.getElementById("test3").innerHTML = "slope Up " + n;
+						break;
+					}
 				}
-			}
-			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
-				collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)&&
-				!collide(this.x + this.speedX, this.y - 3, inViewPlatforms[i], this.width, this.height)) {
-				this.y -= 3;
-				this.slope = 1;
-				this.slopeAngle = 30;
-				if (debug) document.getElementById("test3").innerHTML = "slope Up 3";
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
+				/*
+				 * STUPID WON'T WORK KEEPS FORCING INTO COLLISION
+				// slope down
+				for (var n = 0; n <= slopeMax; n += inc) {
+					if (!collide(this.x + this.speedX, this.y + n, inViewPlatforms[i], this.width, this.height)) {
+						continue;
+					}
+					if (!collide(this.x + this.speedX, this.y + n - inc - inc, inViewPlatforms[i], this.width, this.height) &&
+						!collide(this.x + this.speedX, this.y + n - inc, inViewPlatforms[i], this.width, this.height) &&
+						collide(this.x + this.speedX, this.y + n, inViewPlatforms[i], this.width, this.height) &&
+						n - inc - inc >= 0) {
+						this.y += n - inc;
+						this.slope = 2;
+						this.slopeAngle = -n * 10;
+						if (debug) document.getElementById("test3").innerHTML = "slope Down ";
+						break;
+					}
 				}
-			}
-			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-				collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)&&
-				!collide(this.x + this.speedX, this.y - 2, inViewPlatforms[i], this.width, this.height)) {
-				this.y -= 2;
-				this.slope = 1;
-				this.slopeAngle = 20;
-				if (debug) document.getElementById("test3").innerHTML = "slope Up 2";
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
-				}
-			}
-			else if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-				!collide(this.x + this.speedX, this.y - 1, inViewPlatforms[i], this.width, this.height)) {
-				--this.y;
-				this.slope = 1;
-				this.slopeAngle = 10;
-				if (debug) document.getElementById("test3").innerHTML = "slope Up 1";
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
-				}
+				*/
+				
 			}
 			
 			// check just x collision
 			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height)) {
-				this.speedX *= -1;
-				this.accel = 0;
-				if (this.state == playerState.Gliding) {
-					this.state = playerState.Falling;
+				if (inViewPlatforms[i].type == "ground") {
+					this.speedX = 0;
+					this.accel = 0;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
+					if (debug) document.getElementById("test3").innerHTML = "x Ground Collision";
+					
 				}
-				if (debug) document.getElementById("test3").innerHTML = "x Collision";
+				else if (inViewPlatforms[i].type == "cloud") {
+					this.speedX *= 0.75;
+					if (this.state == playerState.Gliding) {
+						this.state = playerState.Falling;
+					}
+					if (debug) document.getElementById("test3").innerHTML = "x Cloud Collision";
+					
+				}
 				break;
 			}		
 		}
@@ -608,8 +622,8 @@ function player(width, height, colour, x, y, type) {
 function controls() {
 	// player movement
 	player.speedX = 0;
-	if (gameArea.keys && gameArea.keys[key.left]) {player.accel += -0.2; offsetX++; player.faceRight = false;}
-	if (gameArea.keys && gameArea.keys[key.right]) {player.accel += 0.2; offsetX--; player.faceRight = true;}
+	if (gameArea.keys && gameArea.keys[key.left]) {player.accel += -player.accelInc; offsetX++; player.faceRight = false;}
+	if (gameArea.keys && gameArea.keys[key.right]) {player.accel += player.accelInc; offsetX--; player.faceRight = true;}
 	
 	if (gameArea.keys && gameArea.keys[key.s] && shootKeydown) {
 		player.shootProjectile(); 
@@ -679,18 +693,21 @@ function controls() {
 		// idk you ded
 		break;
 	}
-	if (debug) document.getElementById("test2").innerHTML = player.state;	
+	if (debug) document.getElementById("test2").innerHTML = player.state;
 }
 
 function hitGround() {
 	if (player.gravitySpeed == 0 && player.hitGround) {
 		player.hitGround = false;
+		player.gravity = 2;
 		return true;
 	}
 	return false;
 }
 
 function idling() {
+	player.gravity = worldGravity;
+	player.wingBeats = 0;
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 		player.state = playerState.Jumping;
 	}
@@ -703,8 +720,10 @@ function idling() {
 }
 
 function running() {
+	player.gravity = 2;
+	player.wingBeats = 0;
 	if (player.gravitySpeed >= 3) {
-		player.state = playerState.Falling;
+		//player.state = playerState.Falling;
 	}
 	if (gameArea.keys && gameArea.keys[key.a]) {
 		player.state = playerState.Jumping;
@@ -715,18 +734,14 @@ function running() {
 }
 
 function falling() {
-	player.gravity = 0.1;
+	player.gravity = worldGravity;
 	if (debug) document.getElementById("test6").innerHTML = "";
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
 		player.state = playerState.Flying;
 	}
 	if (player.gravitySpeed == 0) {
 		if (hitGround()) {
-			if (debug) document.getElementById("test6").innerHTML = "GROUND WAS HIT";
 			player.state = playerState.Landing;
-		}
-		else {
-			player.state = playerState.Idling;
 		}
 	}
 }
@@ -738,7 +753,7 @@ function ouching() {
 	
 	if (ouchingFrames == 1) {
 		player.gravitySpeed = -3;
-		player.gravity = 0.1;
+		player.gravity = worldGravity;
 		player.invincible = player.invincibleFrames;
 	}
 	if (ouchingFrames >= 100) {
@@ -753,6 +768,7 @@ function ouching() {
 }
 
 function landing() {
+	player.wingBeats = 0;
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 		landingFrames = 0;
 		player.state = playerState.Jumping;
@@ -765,16 +781,16 @@ function landing() {
 }
 
 function gliding() {
-	if (player.gravity < 0.1) {
+	if (player.gravity < worldGravity) {
 		player.gravity += 0.01;
 	}
 	if (player.gravitySpeed > 1) {
-		player.gravitySpeed -= 0.1;
+		player.gravitySpeed -= worldGravity;
 	}
 	if (player.gravitySpeed < 1) {
-		player.gravitySpeed += 0.1;
+		player.gravitySpeed += worldGravity;
 	}
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
 		player.state = playerState.Flying;
 	}
 	if (gameArea.keys && gameArea.keys[key.down]) {
@@ -790,14 +806,16 @@ function jumping() {
 		jumpingFrames = 0;
 	}
 	else {
-		player.gravity = -0.1;
+		player.gravity = -worldGravity;
 		player.gravitySpeed = -3;
 	}
 }
 
 function flying() {
+	
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 		flyingFrames = 0;
+		++player.wingBeats;
 	}
 	
 	flyKeydown = false;
@@ -807,7 +825,7 @@ function flying() {
 		flyingFrames = 0;
 	}
 	else {
-		player.gravity = -0.1;
+		player.gravity = -worldGravity;
 		player.gravitySpeed = -2;
 	}
 }
@@ -860,7 +878,7 @@ function collide(x, y, platform, width, height) {
 		y1 = platform.y1,
 		y2 = platform.y2,
 		y3 = platform.y3,
-	
+		
 		radius = (width + height) >> 2,	// width and height should be the same but um yup
 		radiusSqr = radius*radius,
 		cx1 = x - x1,
@@ -873,7 +891,7 @@ function collide(x, y, platform, width, height) {
 		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr,
 		c2Sqr = cx2*cx2 + cy2*cy2 - radiusSqr,
 		c3Sqr = cx3*cx3 + cy3*cy3 - radiusSqr;
-	
+		
 	// check if triangle vertex in circle
 	if (c1Sqr <= 0)
 		return true;
