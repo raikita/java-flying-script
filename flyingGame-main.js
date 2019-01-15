@@ -97,7 +97,7 @@ var gameArea = {
 function startGame() {
     gameArea.start();
     gameLevel1();
-    player = new player(80, 80, "imgs/player/idle.png", playerStartx, playerStarty, "image");
+    player = new playerSprite(80, 80, "imgs/player/idle.png", playerStartx, playerStarty);
     inCameraView();
 }
 
@@ -260,6 +260,8 @@ function enemy(image, width, height, colour, x, y, hitPoints) {
 	}
 	
 	this.draw = function () {
+		// do this one when image exists
+		// drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
 		var ctx = gameArea.context;
 		ctx.fillStyle = colour;
 		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
@@ -326,6 +328,8 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 	
 	this.draw = function () {
+		// do this one when image exists
+		// drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
 		var ctx = gameArea.context;
 		ctx.fillStyle = colour;
 		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
@@ -367,14 +371,47 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 }
 
-function player(width, height, colour, x, y, type) {
-	this.type = type;
-	if (type == "image") {
-		this.image = new Image();
-		this.image.src = colour;
+function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFrames) {
+	// thanks http://www.williammalone.com/articles/create-html5-canvas-javascript-sprite-animation/ for moving sprites
+	
+	var	ctx = gameArea.context,
+		colAdj = 20,						// adjust size for collision (smaller than image)
+		w = sprite.x - (width+colAdj)/2,	// looking right Width
+		w2 = -sprite.x - (width+colAdj)/2,	// looking left Width
+		sx = sprite.frameIndex * imgWidth, 		// source x
+		sy = 0,								// source y
+		sw = imgWidth,						// frame width	(source)
+		sh = imgHeight,						// frame height	(source)
+		dx = w,								// destination x
+		dx2 = w2;							// destination x facing left
+		dy = sprite.y - (height+colAdj)/2,	// destination y
+		dw = width+colAdj, 					// frame width (destination)
+		dh = height+colAdj;					// frame height (destination)
+	
+	++sprite.tickCount;
+	if (sprite.tickCount > sprite.ticksPerFrame) {
+		sprite.tickCount = 0;
+		++sprite.frameIndex;
+	}
+	if (sprite.frameIndex > numFrames) {
+		sprite.frameIndex = 1;
 	}
 	
-	this.colAdj = 20; // adjust for collision area (smaller than image)
+	if (sprite.faceRight) {
+		ctx.drawImage(spriteImg, sx, sy, sw, sh, dx, dy, dw, dh);
+	} else {
+		ctx.save();
+		ctx.scale(-1, 1);
+		ctx.drawImage(spriteImg, sx, sy, sw, sh, dx2, dy, dw, dh);
+		ctx.setTransform(1, 0, 0, 1, 0, 0);
+		ctx.restore();
+	}	
+}
+
+function playerSprite(width, height, img, x, y) {
+	this.image = new Image();
+	this.image.src = img;
+	this.colAdj = 20;
 	this.faceRight = true;
 	this.state = playerState.Idling;
 	this.width = width-this.colAdj;
@@ -400,15 +437,18 @@ function player(width, height, colour, x, y, type) {
 	this.invincible = 0;
 	this.invincibleFrames = 180;
 	
-	this.slope = 0; // 0 = no slope, 1 = slope up, 2 = slope down
-	this.slopeAngle = 0;
-	
 	this.shootProjectile = function() {
 		if (allProjectiles.length >= 5) {
 			return;
 		}
 		var col = "Red"
-	    var fireBall = new projectile(30, 30, col, this.x + this.width/2, this.y, true, true, this.faceRight, this.accel);
+			var fireBall;
+			if (this.faceRight) {
+			    fireBall = new projectile(20, 20, col, this.x + this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
+			}
+			else {
+			    fireBall = new projectile(20, 20, col, this.x - this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
+			}
 	    allProjectiles.push(fireBall);
 	}
 	
@@ -433,34 +473,13 @@ function player(width, height, colour, x, y, type) {
 		if (debug) document.getElementById("test5").innerHTML = "gravitySpeed: " + this.gravitySpeed + ",<br> gravity: " + this.gravity;
 	}
 	
+	this.frameIndex = 0;		// current frame to be displayed
+	this.tickCount = 0;			// number of updates since current frame was first displayed
+	this.ticksPerFrame = 10;	// number of updates until next frame should be displayed, FPS
+	
 	this.draw = function () {
-		var ctx = gameArea.context;
-		if (this.slope > 0) {
-			ctx.save();
-			ctx.translate(this.x, this.y);
-			if (this.slope == 1) ctx.rotate((this.faceRight ? -1 : 1) * this.slopeAngle * Math.PI / 180);
-			if (this.slope == 2) ctx.rotate((this.faceRight ? 1 : -1) * this.slopeAngle * Math.PI / 180);
-			ctx.translate(-this.x, -this.y)
-		}
-		
-		if (type == "image") {
-			if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
-				if (this.faceRight) {
-					ctx.drawImage(this.image, this.x - (this.width+this.colAdj)/2, this.y - (this.height+this.colAdj)/2, this.width+this.colAdj, this.height+this.colAdj);
-				} else {
-					ctx.save();
-					ctx.scale(-1, 1);
-					ctx.drawImage(this.image, -this.x - (this.width+this.colAdj)/2, this.y - (this.height+this.colAdj)/2, this.width+this.colAdj, this.height+20);
-					ctx.setTransform(1, 0, 0, 1, 0, 0);
-					ctx.restore();
-				}
-			}
-		} else {
-			ctx.fillStyle = colour;
-			ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
-		}
-		if (this.slope > 0) {
-			ctx.restore();
+		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
+			drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
 		}
 	}
 	
@@ -477,12 +496,10 @@ function player(width, height, colour, x, y, type) {
 		}
 	}
 	
-	
 	this.detectCollision = function() {
 		var slopeMax = 3,
 		slopeFall = 0.1; // slopeFall: The lower the number, the more steep cliff has to be to slide
-		this.slopeAngle = 0;
-		this.slope = 0;
+
 
 		if (debug) document.getElementById("test4").innerHTML = "..";
 		if (debug) document.getElementById("test3").innerHTML = "..";
@@ -552,44 +569,21 @@ function player(width, height, colour, x, y, type) {
 		}
 		this.y += this.gravitySpeed;
 		
-		var inc = 0.1;
 		// x collision
 		for (var i = 0; i < inViewPlatforms.length; ++i) {
 			// check if can move up or down slopes
 			if (inViewPlatforms[i].type == "ground") {
 				// slope up
-				for (var n = 0; n <= slopeMax; n += inc) {
+				for (var n = 0; n <= slopeMax; n += 0.1) {
 					if (collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						continue;
 					}
 					if (!collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						this.y -= n;
-						this.slope = 1;
-						this.slopeAngle = n * 10;
 						if (debug) document.getElementById("test3").innerHTML = "slope Up " + n;
 						break;
 					}
-				}
-				/*
-				 * STUPID WON'T WORK KEEPS FORCING INTO COLLISION
-				// slope down
-				for (var n = 0; n <= slopeMax; n += inc) {
-					if (!collide(this.x + this.speedX, this.y + n, inViewPlatforms[i], this.width, this.height)) {
-						continue;
-					}
-					if (!collide(this.x + this.speedX, this.y + n - inc - inc, inViewPlatforms[i], this.width, this.height) &&
-						!collide(this.x + this.speedX, this.y + n - inc, inViewPlatforms[i], this.width, this.height) &&
-						collide(this.x + this.speedX, this.y + n, inViewPlatforms[i], this.width, this.height) &&
-						n - inc - inc >= 0) {
-						this.y += n - inc;
-						this.slope = 2;
-						this.slopeAngle = -n * 10;
-						if (debug) document.getElementById("test3").innerHTML = "slope Down ";
-						break;
-					}
-				}
-				*/
-				
+				}				
 			}
 			
 			// check just x collision
