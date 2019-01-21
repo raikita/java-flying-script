@@ -5,6 +5,7 @@
  *  TODO: Animations
  *  TODO: Start screen
  *  TODO: Sliding state: when x is moving but key not pressed
+ *  TODO: PRELOAD IMAGES!!!!!!!
  *  
  */
 
@@ -437,6 +438,8 @@ function playerSprite(width, height, img, x, y) {
 	this.invincible = 0;
 	this.invincibleFrames = 180;
 	
+	this.notCollidingY = 0;
+	
 	this.shootProjectile = function() {
 		if (allProjectiles.length >= 5) {
 			return;
@@ -475,21 +478,40 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 10;	// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 8;	// number of updates until next frame should be displayed, FPS
+	this.maxFrames = 35;
+	this.stateChange = false;
 	
 	this.draw = function () {
+		if (this.stateChange) {
+			this.frameIndex = 0;
+			this.stateChange = false;
+		}
+		
+		switch (player.state) {
+		case playerState.Idling:
+			this.image.src = "imgs/player/idle.png";
+			this.maxFrames = 35;
+			break;
+		case playerState.Running:
+			this.image.src = "imgs/player/walk.png";
+			this.maxFrames = 27;
+			break;
+		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
-			drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
+			drawSprite(this, this.image, 200, 200, this.width, this.height, this.maxFrames);
 		}
 	}
 	
 	this.hitEdge = function () {
 		if (this.y + this.gravitySpeed > levelLimitsy) {
-			this.state = playerState.Dying;
+			changeState(this, playerState.Jumping);
+			//this.state = playerState.Dying;
 			return;
 		}
 		if (this.y + this.gravitySpeed < -200) {
-			this.state = playerState.Falling;
+			changeState(this, playerState.Jumping);
+			//this.state = playerState.Falling;
 		}
 		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
 			this.speedX = 0;
@@ -512,10 +534,12 @@ function playerSprite(width, height, img, x, y) {
 					collideObject(this.x + this.speedX, this.y, inViewEnemies[i], this.width, this.height)) {
 					--this.hitPoints;
 					if (this.hitPoints > 0) {
-						this.state = playerState.Ouching;
+						changeState(this, playerState.Ouching);
+						//this.state = playerState.Ouching;
 					}
 					else {
-						this.state = playerState.Dying;
+						changeState(this, playerState.Dying);
+						//this.state = playerState.Dying;
 					}			
 				}
 			}
@@ -546,11 +570,13 @@ function playerSprite(width, height, img, x, y) {
 				else {
 					this.hitGround = false;
 				}
+				this.notCollidingY = 0;
 				
 				if (inViewPlatforms[i].type == "ground") {
 					this.gravitySpeed = 0;
 					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;
+						changeState(this, playerState.Falling);
+						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test4").innerHTML = "y Ground Collision ";
 				}
@@ -560,12 +586,16 @@ function playerSprite(width, height, img, x, y) {
 					}
 					this.wingBeats = 0;
 					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;	// making it a different type of falling animation
+						changeState(this, playerState.Falling);
+						//this.state = playerState.Falling;	// making it a different type of falling animation
 					}
 					if (debug) document.getElementById("test4").innerHTML = "y Cloud Collision ";
 				}
 				break;
 			}
+			// stop from falling at the speed of too fast, quick hacking fix
+			++this.notCollidingY;
+			if (this.notCollidingY > 450) this.notCollidingY = 450;
 		}
 		this.y += this.gravitySpeed;
 		
@@ -592,7 +622,8 @@ function playerSprite(width, height, img, x, y) {
 					this.speedX = 0;
 					this.accel = 0;
 					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;
+						changeState(this, playerState.Falling);
+						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test3").innerHTML = "x Ground Collision";
 					
@@ -600,7 +631,8 @@ function playerSprite(width, height, img, x, y) {
 				else if (inViewPlatforms[i].type == "cloud") {
 					this.speedX *= 0.75;
 					if (this.state == playerState.Gliding) {
-						this.state = playerState.Falling;
+						changeState(this, playerState.Falling);
+						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test3").innerHTML = "x Cloud Collision";
 					
@@ -660,10 +692,30 @@ function controls() {
 	// movement
 	switch (player.state) {
 	case playerState.Idling:
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+			changeState(player, playerState.Jumping);
+			//player.state = playerState.Jumping;
+		}
+		else if (gameArea.keys && (gameArea.keys[key.right] || gameArea.keys[key.left])) {
+			changeState(player, playerState.Running);
+			//player.state = playerState.Running;
+		}
+		else if (player.gravitySpeed >= 3) {
+			changeState(player, playerState.Falling);
+			//player.state = playerState.Falling;
+		}
 		idling();
 		break;
 	case playerState.Running:
 		running();
+		if (gameArea.keys && gameArea.keys[key.a]) {
+			changeState(player, playerState.Jumping);
+			//player.state = playerState.Jumping;
+		}
+		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
+			changeState(player, playerState.Idling);
+			//player.state = playerState.Idling;
+		}
 		break;
 	case playerState.Jumping:
 		jumping();
@@ -673,11 +725,28 @@ function controls() {
 		break;
 	case playerState.Gliding:
 		gliding();
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
+			changeState(player, playerState.Flying);
+			//player.state = playerState.Flying;
+		}
+		if (gameArea.keys && gameArea.keys[key.down]) {
+			changeState(player, playerState.Falling);
+			//player.state = playerState.Falling;
+		}
 		break;
 	case playerState.Falling:
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
+			changeState(player, playerState.Flying);
+			//player.state = playerState.Flying;
+		}
 		falling();
 		break;
 	case playerState.Landing:
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+			landingFrames = 0;
+			changeState(player, playerState.Jumping);
+			//player.state = playerState.Jumping;
+		}
 		landing();
 		break;
 	case playerState.Ouching:
@@ -688,6 +757,13 @@ function controls() {
 		break;
 	}
 	if (debug) document.getElementById("test2").innerHTML = player.state;
+}
+
+function changeState(sprite, newState) {
+	if (sprite.state != newState) {
+		sprite.stateChange = true;
+		sprite.state = newState;
+	} 
 }
 
 function hitGround() {
@@ -702,40 +778,29 @@ function hitGround() {
 function idling() {
 	player.gravity = worldGravity;
 	player.wingBeats = 0;
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
-		player.state = playerState.Jumping;
-	}
-	else if (gameArea.keys && (gameArea.keys[key.right] || gameArea.keys[key.left])) {
-		player.state = playerState.Running;
-	}
-	else if (player.gravitySpeed >= 3) {
-		player.state = playerState.Falling;
-	}
+	
 }
 
 function running() {
 	player.gravity = 2;
 	player.wingBeats = 0;
-	if (player.gravitySpeed >= 3) {
+	if (player.notCollidingY > 400) {
+		changeState(player, playerState.Falling);
 		//player.state = playerState.Falling;
+		player.gravitySpeed = 0;
+		player.notCollidingY = 400;
 	}
-	if (gameArea.keys && gameArea.keys[key.a]) {
-		player.state = playerState.Jumping;
-	}
-	if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
-		player.state = playerState.Idling;
-	}
+	
 }
 
 function falling() {
 	player.gravity = worldGravity;
 	if (debug) document.getElementById("test6").innerHTML = "";
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
-		player.state = playerState.Flying;
-	}
+	
 	if (player.gravitySpeed == 0) {
 		if (hitGround()) {
-			player.state = playerState.Landing;
+			changeState(player, playerState.Landing);
+			//player.state = playerState.Landing;
 		}
 	}
 }
@@ -752,7 +817,8 @@ function ouching() {
 	}
 	if (ouchingFrames >= 100) {
 		ouchingFrames = 0;
-		player.state = playerState.Landing;
+		changeState(player, playerState.Landing);
+		//player.state = playerState.Landing;
 	}
 	if (player.faceRight) {
 		player.speedX--;
@@ -763,14 +829,12 @@ function ouching() {
 
 function landing() {
 	player.wingBeats = 0;
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
-		landingFrames = 0;
-		player.state = playerState.Jumping;
-	}
+	
 	landingFrames++;
 	if (landingFrames > 30) {
 		landingFrames = 0;
-		player.state = playerState.Idling;
+		changeState(player, playerState.Idling);
+		//player.state = playerState.Idling;
 	}
 }
 
@@ -784,19 +848,15 @@ function gliding() {
 	if (player.gravitySpeed < 1) {
 		player.gravitySpeed += worldGravity;
 	}
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
-		player.state = playerState.Flying;
-	}
-	if (gameArea.keys && gameArea.keys[key.down]) {
-		player.state = playerState.Falling;
-	}
+	
 }
 
 function jumping() {
 	flyKeydown = false;
 	jumpingFrames++;
 	if (jumpingFrames > 30) {
-		player.state = playerState.Falling;
+		changeState(player, playerState.Falling);
+		//layer.state = playerState.Falling;
 		jumpingFrames = 0;
 	}
 	else {
@@ -815,7 +875,8 @@ function flying() {
 	flyKeydown = false;
 	flyingFrames++;
 	if (flyingFrames > 30) {
-		player.state = playerState.Gliding;
+		changeState(player, playerState.Gliding);
+		//player.state = playerState.Gliding;
 		flyingFrames = 0;
 	}
 	else {
