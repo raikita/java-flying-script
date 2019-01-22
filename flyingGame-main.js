@@ -95,10 +95,46 @@ var gameArea = {
 	    }
 };
 
+// TODO: Seriously need to put these in another file..............
+var playerImgIndex = {
+	IDLE : 0,
+	WALK : 1
+};
+
+var bgImgIndex = {
+		GROUND : 0,
+		CLOUDS : 1
+};
+
+var playerImgs = [];
+var bgImgs = [];
+
+function preload() {
+	var playerIndex = 0, bgIndex = 0;
+	for (var i = 0; i < preload.arguments.length; ++i) {
+		if (preload.arguments[i].indexOf("level") !== -1) {
+			bgImgs[bgIndex] = new Image();
+			bgImgs[bgIndex].src = preload.arguments[i];
+			++bgIndex;
+		}
+		if (preload.arguments[i].indexOf("player") !== -1) {
+			playerImgs[playerIndex] = new Image();
+			playerImgs[playerIndex].src = preload.arguments[i];
+			++playerIndex;
+		}
+	}
+}
+
 function startGame() {
+	preload(
+			"imgs/levels/level1-ground.png",
+			"imgs/levels/level1-clouds.png",
+			"imgs/player/idle.png",
+			"imgs/player/walk.png"
+	);
     gameArea.start();
     gameLevel1();
-    player = new playerSprite(80, 80, "imgs/player/idle.png", playerStartx, playerStarty);
+    player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
 }
 
@@ -108,8 +144,8 @@ function drawLevel(x, y, width, height, type) {
 	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length + 
 	"<br>player.x: " + player.x + "<br>player.y: " + player.y;
 	
-	if (type == "ground") {background.src = "imgs/levels/level1-ground.png";}
-	if (type == "clouds") {background.src = "imgs/levels/level1-clouds.png";}
+	if (type == "ground") {background.src = bgImgs[bgImgIndex.GROUND].src;}
+	if (type == "clouds") {background.src = bgImgs[bgImgIndex.CLOUDS].src;}
 
 	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 	
@@ -428,8 +464,8 @@ function playerSprite(width, height, img, x, y) {
 	this.maxWingBeats = 5;
 	this.wingBeats = 0;
 	
-	this.accelInc = 0.1;
-	this.accelDec = 0.05;
+	this.accelInc = 0.01;
+	this.accelDec = 0.1;
 	this.accel = 0;
 	this.maxAccel = 2;
 	
@@ -490,11 +526,11 @@ function playerSprite(width, height, img, x, y) {
 		
 		switch (player.state) {
 		case playerState.Idling:
-			this.image.src = "imgs/player/idle.png";
+			this.image.src = playerImgs[playerImgIndex.IDLE].src;
 			this.maxFrames = 35;
 			break;
 		case playerState.Running:
-			this.image.src = "imgs/player/walk.png";
+			this.image.src = playerImgs[playerImgIndex.WALK].src;
 			this.maxFrames = 27;
 			break;
 		}
@@ -648,8 +684,30 @@ function playerSprite(width, height, img, x, y) {
 function controls() {
 	// player movement
 	player.speedX = 0;
-	if (gameArea.keys && gameArea.keys[key.left]) {player.accel += -player.accelInc; offsetX++; player.faceRight = false;}
-	if (gameArea.keys && gameArea.keys[key.right]) {player.accel += player.accelInc; offsetX--; player.faceRight = true;}
+	// move left
+	if (gameArea.keys && gameArea.keys[key.left]) {
+		if (player.accel > 0) {
+			player.accel -= player.accelInc * 3;
+			// state = turning
+		}
+		else {
+			player.accel -= player.accelInc; 
+		}
+		
+		offsetX++; 
+		player.faceRight = false;
+		}
+	// move right
+	if (gameArea.keys && gameArea.keys[key.right]) {
+		if (player.accel < 0) {
+			player.accel += player.accelInc * 3;
+			// state = turning
+		}
+		else {
+			player.accel += player.accelInc;
+		}
+		offsetX--; 
+		player.faceRight = true;}
 	
 	if (gameArea.keys && gameArea.keys[key.s] && shootKeydown) {
 		player.shootProjectile(); 
@@ -657,7 +715,7 @@ function controls() {
 	}
 	
 	// slow down if player stopped pressing key
-	if (gameArea.keys && !(gameArea.keys[key.left] && gameArea.keys[key.right])) {
+	if (gameArea.keys && !(gameArea.keys[key.left] || gameArea.keys[key.right])) {
 		if (player.accel < 0) {
 			if (player.state == playerState.Gliding || player.state == playerState.Flying) {
 				player.accel += player.accelDec*0.2;
@@ -694,15 +752,12 @@ function controls() {
 	case playerState.Idling:
 		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 			changeState(player, playerState.Jumping);
-			//player.state = playerState.Jumping;
 		}
 		else if (gameArea.keys && (gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			changeState(player, playerState.Running);
-			//player.state = playerState.Running;
 		}
 		else if (player.gravitySpeed >= 3) {
 			changeState(player, playerState.Falling);
-			//player.state = playerState.Falling;
 		}
 		idling();
 		break;
@@ -710,11 +765,9 @@ function controls() {
 		running();
 		if (gameArea.keys && gameArea.keys[key.a]) {
 			changeState(player, playerState.Jumping);
-			//player.state = playerState.Jumping;
 		}
 		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			changeState(player, playerState.Idling);
-			//player.state = playerState.Idling;
 		}
 		break;
 	case playerState.Jumping:
@@ -727,17 +780,14 @@ function controls() {
 		gliding();
 		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
 			changeState(player, playerState.Flying);
-			//player.state = playerState.Flying;
 		}
 		if (gameArea.keys && gameArea.keys[key.down]) {
 			changeState(player, playerState.Falling);
-			//player.state = playerState.Falling;
 		}
 		break;
 	case playerState.Falling:
 		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
 			changeState(player, playerState.Flying);
-			//player.state = playerState.Flying;
 		}
 		falling();
 		break;
@@ -745,7 +795,6 @@ function controls() {
 		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 			landingFrames = 0;
 			changeState(player, playerState.Jumping);
-			//player.state = playerState.Jumping;
 		}
 		landing();
 		break;
@@ -760,10 +809,8 @@ function controls() {
 }
 
 function changeState(sprite, newState) {
-	if (sprite.state != newState) {
-		sprite.stateChange = true;
-		sprite.state = newState;
-	} 
+	sprite.stateChange = true;
+	sprite.state = newState;
 }
 
 function hitGround() {
@@ -786,7 +833,6 @@ function running() {
 	player.wingBeats = 0;
 	if (player.notCollidingY > 400) {
 		changeState(player, playerState.Falling);
-		//player.state = playerState.Falling;
 		player.gravitySpeed = 0;
 		player.notCollidingY = 400;
 	}
@@ -800,7 +846,6 @@ function falling() {
 	if (player.gravitySpeed == 0) {
 		if (hitGround()) {
 			changeState(player, playerState.Landing);
-			//player.state = playerState.Landing;
 		}
 	}
 }
@@ -818,7 +863,6 @@ function ouching() {
 	if (ouchingFrames >= 100) {
 		ouchingFrames = 0;
 		changeState(player, playerState.Landing);
-		//player.state = playerState.Landing;
 	}
 	if (player.faceRight) {
 		player.speedX--;
@@ -856,7 +900,6 @@ function jumping() {
 	jumpingFrames++;
 	if (jumpingFrames > 30) {
 		changeState(player, playerState.Falling);
-		//layer.state = playerState.Falling;
 		jumpingFrames = 0;
 	}
 	else {
@@ -876,7 +919,6 @@ function flying() {
 	flyingFrames++;
 	if (flyingFrames > 30) {
 		changeState(player, playerState.Gliding);
-		//player.state = playerState.Gliding;
 		flyingFrames = 0;
 	}
 	else {
