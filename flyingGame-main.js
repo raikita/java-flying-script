@@ -109,33 +109,50 @@ var bgImgIndex = {
 var playerImgs = [];
 var bgImgs = [];
 
-function preload() {
-	var playerIndex = 0, bgIndex = 0;
-	for (var i = 0; i < preload.arguments.length; ++i) {
-		if (preload.arguments[i].indexOf("level") !== -1) {
-			bgImgs[bgIndex] = new Image();
-			bgImgs[bgIndex].src = preload.arguments[i];
-			++bgIndex;
-		}
-		if (preload.arguments[i].indexOf("player") !== -1) {
-			playerImgs[playerIndex] = new Image();
-			playerImgs[playerIndex].src = preload.arguments[i];
-			++playerIndex;
-		}
-	}
+function loadImages(array, src) {
+	var deferred = $.Deferred();
+	var img = new Image();
+	img.onload = function() {
+		deferred.resolve();
+	};
+	img.src = src;
+	array.push(img);
+	return deferred.promise();
 }
 
+
+function loadingScreen() {
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d");
+	
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+
+
+function loadGame() {
+	loadingScreen();
+
+	var loading = [];
+	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
+	loading.push(loadImages(bgImgs, "imgs/levels/level1-ground.png"));
+	loading.push(loadImages(bgImgs, "imgs/levels/level1-clouds.png"));
+	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
+	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
+	
+	$.when.apply(null, loading).done(function() {
+		startGame();
+	});	
+}
+
+
 function startGame() {
-	preload(
-			"imgs/levels/level1-ground.png",
-			"imgs/levels/level1-clouds.png",
-			"imgs/player/idle.png",
-			"imgs/player/walk.png"
-	);
+	//if (debug) document.getElementById("test99").innerHTML = "lshoul dbe done loading"; 
     gameArea.start();
     gameLevel1();
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
+    
 }
 
 function drawLevel(x, y, width, height, type) {
@@ -151,7 +168,7 @@ function drawLevel(x, y, width, height, type) {
 	
 	// just to see collisions
 	if (showCollision) {
-		ctx.beginPath()
+		ctx.beginPath();
 		for (i = 0; i < inViewPlatforms.length; ++i) {
 				ctx.moveTo(inViewPlatforms[i].x1, inViewPlatforms[i].y1);
 				ctx.lineTo(inViewPlatforms[i].x2, inViewPlatforms[i].y2);
