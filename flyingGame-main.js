@@ -5,7 +5,6 @@
  *  TODO: Animations
  *  TODO: Start screen
  *  TODO: Sliding state: when x is moving but key not pressed
- *  TODO: PRELOAD IMAGES!!!!!!!
  *  
  */
 
@@ -30,6 +29,15 @@ var playerState = {
 		Gliding:"gliding",
 		Jumping:"jumping",
 		Landing:"landing",
+		Ouching:"ouching",
+		Dying:"dying"
+};
+
+var enemyState = {
+		Idling:"idling",
+		Attacking:"attacking",
+		Walking:"walking",
+		Jumping:"jumping",
 		Ouching:"ouching",
 		Dying:"dying"
 };
@@ -147,7 +155,6 @@ function loadGame() {
 
 
 function startGame() {
-	//if (debug) document.getElementById("test99").innerHTML = "lshoul dbe done loading"; 
     gameArea.start();
     gameLevel1();
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
@@ -193,6 +200,7 @@ function gameLevel1() {
     spawnEnemy(1, 500, 1220);
     spawnEnemy(1, 700, 1220);
     spawnEnemy(1, 350, 1220);
+    spawnEnemy(1, 300, 360);
 }
 
 function loadFile() {
@@ -222,6 +230,9 @@ function loadFile() {
 	}
 }
 
+
+var dyingEnemies = [];
+
 function updateGameArea() {
 	// first check if dead
 	if (player.state == playerState.Dying) {
@@ -250,8 +261,9 @@ function updateGameArea() {
 	}
 	for (var i = 0; i < inViewEnemies.length; ++i) {
 		inViewEnemies[i].updatePos();
-		
-		if (inViewEnemies[i].shouldDie) {
+		if (inViewEnemies[i].state == enemyState.Dying) {
+			dyingEnemies.push(inViewEnemies[i]);
+			
 			for (var j = 0; j < allEnemies.length; ++j) {
 				if (inViewEnemies[i] === allEnemies[j]) {
 					delete allEnemies.splice(j, 1);
@@ -259,6 +271,13 @@ function updateGameArea() {
 					break;
 				}
 			}
+		}
+	}
+		
+	for (var i = 0; i < dyingEnemies.length; ++i) {
+		dyingEnemies[i].updatePos();
+		if (dyingEnemies[i].shouldDie) {
+			delete dyingEnemies.splice(i, 1);
 		}
 	}
 	
@@ -275,6 +294,10 @@ function updateGameArea() {
 		inViewEnemies[i].draw();
 	}
 	
+	for (var i = 0; i < dyingEnemies.length; ++i) {
+		dyingEnemies[i].draw();
+	}
+	
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].draw();
 	}
@@ -284,15 +307,17 @@ function updateGameArea() {
 }
 
 function spawnEnemy(type, x, y) {
+	// new enemy: imgsrc, width, height, x, y, hitpoints
 	if (type == 1) {
-		var e = new enemy("", 70, 70, "Orange", x, y, 5);
+		var e = new enemy("", 70, 70, "Orange", x, y, 5, type);
 		allEnemies.push(e);
 	}
 }
 
-function enemy(image, width, height, colour, x, y, hitPoints) {
+function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.image = new Image();
 	this.image.src = "";
+	this.type = type;
 	
 	this.width = width;
 	this.height = height;
@@ -304,24 +329,61 @@ function enemy(image, width, height, colour, x, y, hitPoints) {
 	this.x = x;
 	this.y = y;
 	
+	this.state = enemyState.Idling;
 	this.shouldDie = false;
 	
 	this.hitPoints = hitPoints;
 	
 	this.updatePos = function() {
+		enemyUpdateStates(this);
 		this.gravitySpeed += this.gravity;
 		this.detectCollision();
 	}
 	
+	this.frameIndex = 0;		// current frame to be displayed
+	this.tickCount = 0;			// number of updates since current frame was first displayed
+	this.ticksPerFrame = 8;	// number of updates until next frame should be displayed, FPS
+	this.maxFrames = 35;
+	this.stateChange = false;
+	
+	this.attackFrames = 0;
+	this.attackFramesMax = 50;
+	this.dyingFrames = 0;
+	this.dyingFramesMax = 50;
+	
 	this.draw = function () {
-		// do this one when image exists
-		// drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
 		var ctx = gameArea.context;
-		ctx.fillStyle = colour;
+		if (this.stateChange) {
+			this.frameIndex = 0;
+			this.stateChange = false;
+		}
+		
+		switch (this.state) {
+		case enemyState.Idling:
+			//this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			ctx.fillStyle = "Orange";
+			this.maxFrames = 1;
+			break;
+		case enemyState.Attacking:
+			//this.image.src = playerImgs[playerImgIndex.WALK].src;
+			ctx.fillStyle = "Red";
+			this.maxFrames = 1;
+			break;
+		case enemyState.Dying:
+			ctx.fillStyle = "Black";
+			this.maxFrames = 1;
+			break;
+		}
 		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
 	}
 	
 	this.detectCollision = function () {
+		// check if it hit player
+		//if (x y object width height)
+		if (collideObject(this.x, this.y, player, this.width*1.5, this.height*1.5)) {
+			this.state = enemyState.Attacking;
+		}
+		
 		// check if it got shot
 		for (var i = 0; i < allProjectiles.length; ++i) {
 			// if the owner is true then it belongs to the player
@@ -329,17 +391,37 @@ function enemy(image, width, height, colour, x, y, hitPoints) {
 				this.hitPoints--;
 				allProjectiles[i].shouldDie = true;
 				if (this.hitPoints <= 0) {
-					this.shouldDie = true;
+					this.state = enemyState.Dying;
 				}
 				break;
 			}
 		}
 	}
-	
+
 	// detect player?
 	
 	// shoot stuff?
 	
+}
+
+function enemyUpdateStates(enemy) {
+	switch (enemy.state) {
+	case enemyState.Idling:
+		// reset all frames
+		enemy.attackFrames = 0;
+		break;
+	case enemyState.Attacking:
+		++enemy.attackFrames;
+		if (enemy.attackFrames >= enemy.attackFramesMax) {
+			enemy.state = enemyState.Idling;
+		}
+		break;
+	case enemyState.Dying:
+		++enemy.dyingFrames;
+		if (enemy.dyingFrames >= enemy.dyingFramesMax) {
+			enemy.shouldDie = true;
+		}
+	}
 }
 
 function projectile(width, height, colour, x, y, owner, bounces, direction, startingSpeed) {
@@ -541,7 +623,7 @@ function playerSprite(width, height, img, x, y) {
 			this.stateChange = false;
 		}
 		
-		switch (player.state) {
+		switch (this.state) {
 		case playerState.Idling:
 			this.image.src = playerImgs[playerImgIndex.IDLE].src;
 			this.maxFrames = 35;
@@ -559,12 +641,10 @@ function playerSprite(width, height, img, x, y) {
 	this.hitEdge = function () {
 		if (this.y + this.gravitySpeed > levelLimitsy) {
 			changeState(this, playerState.Jumping);
-			//this.state = playerState.Dying;
 			return;
 		}
 		if (this.y + this.gravitySpeed < -200) {
 			changeState(this, playerState.Jumping);
-			//this.state = playerState.Falling;
 		}
 		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
 			this.speedX = 0;
@@ -588,11 +668,9 @@ function playerSprite(width, height, img, x, y) {
 					--this.hitPoints;
 					if (this.hitPoints > 0) {
 						changeState(this, playerState.Ouching);
-						//this.state = playerState.Ouching;
 					}
 					else {
 						changeState(this, playerState.Dying);
-						//this.state = playerState.Dying;
 					}			
 				}
 			}
