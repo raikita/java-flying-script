@@ -43,6 +43,8 @@ var enemyState = {
 };
 
 var key = {
+		enter: 13,
+		up: 38,
 		down: 40,
 		right: 39,
 		left: 37,
@@ -73,11 +75,8 @@ var camera = {
 
 var gameArea = {
 	    canvas : document.getElementById('canvas'),
-	    start : function() {
-	        this.context = this.canvas.getContext("2d");
-	        this.interval = setInterval(updateGameArea, 0.02);
-	                
-	        // keyboard controls
+	    keys : function() {
+	    	 // keyboard controls
 	        window.addEventListener('keydown', function (e) {
 	            gameArea.keys = (gameArea.keys || []);
 	            gameArea.keys[e.keyCode] = (e.type == 'keydown');
@@ -100,6 +99,16 @@ var gameArea = {
 	            flyKeydown = false;
 	            shootKeydown = false;
 	        });
+	    },
+	    mainMenu : function() {
+	    	this.mainMenuInterval = setInterval(mainMenu, 0.02);
+	    	this.selection = 0;
+	    },
+	    start : function() {
+	        this.context = this.canvas.getContext("2d");
+	        this.interval = setInterval(updateGameArea, 0.02);
+	                
+	       
 	    }
 };
 
@@ -116,6 +125,7 @@ var bgImgIndex = {
 
 var playerImgs = [];
 var bgImgs = [];
+var uiImgs = [];
 
 function loadImages(array, src) {
 	var deferred = $.Deferred();
@@ -136,9 +146,71 @@ function loadingScreen() {
 	ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
+function openGame() {
+	loadingScreen();
+
+	var loading = [];
+	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
+	loading.push(loadImages(uiImgs, "imgs/startscreen.png"));
+	
+	$.when.apply(null, loading).done(function() {
+		gameArea.keys();
+		gameArea.mainMenu();
+	});	
+}
+
+
+// load menu stuff, then load game stuff
+function mainMenu() {
+	var canvas = document.getElementById("canvas"),
+		ctx = canvas.getContext("2d"),
+		x1 = 225, y1 = 248, x2 = 10, y2 = 10,
+		selectors = ["Start Game", "Controls"], MAX = 1;
+	
+	ctx.drawImage(uiImgs[0], 0, 0, 700, 525);
+	
+	ctx.font = "30px Arial";
+	ctx.fillStyle = "#fff49f";
+	ctx.fillText("Begin Game", 250, 262);
+	ctx.fillText("View Controls", 250, 312);
+
+	
+	// allow looping of selecting
+	if (gameArea.keys && gameArea.keys[key.up]) {
+		gameArea.keys = false;
+		++gameArea.selection;
+		if (gameArea.selection > MAX) {
+			gameArea.selection = 0;
+		}
+	}
+	if (gameArea.keys && gameArea.keys[key.down]) {
+		gameArea.keys = false;
+		--gameArea.selection;
+		if (gameArea.selection < 0) {
+			gameArea.selection = MAX;
+		}
+	}
+	if (gameArea.selection == 0) {
+		ctx.fillRect(x1, y1, x2, y2);
+	}
+	if (gameArea.selection == 1) {
+		ctx.fillRect(x1, y1+50, x2, y2);
+	}
+	
+	// begin game
+	if (gameArea.selection == 0 && gameArea.keys && (gameArea.keys[key.a] || gameArea.keys[key.enter])) {
+		gameArea.keys = false;
+		loadGame();
+	}
+	if (gameArea.selection == 0 && gameArea.keys && gameArea.keys[key.a]) {
+		// no control thingies yet wahahahaaha....
+	}
+
+}
 
 
 function loadGame() {
+	clearInterval(gameArea.mainMenuInterval);
 	loadingScreen();
 
 	var loading = [];
@@ -152,6 +224,8 @@ function loadGame() {
 		startGame();
 	});	
 }
+
+
 
 
 function startGame() {
@@ -336,8 +410,12 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.updatePos = function() {
 		enemyUpdateStates(this);
-		this.gravitySpeed += this.gravity;
-		this.detectCollision();
+		
+		if (this.state != enemyState.Dying) {
+			this.gravitySpeed += this.gravity;
+			this.detectCollision();
+		}
+		
 	}
 	
 	this.frameIndex = 0;		// current frame to be displayed
@@ -381,7 +459,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 		// check if it hit player
 		//if (x y object width height)
 		if (collideObject(this.x, this.y, player, this.width*1.5, this.height*1.5)) {
-			this.state = enemyState.Attacking;
+			changeState(this, enemyState.Attacking);
 		}
 		
 		// check if it got shot
@@ -391,7 +469,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 				this.hitPoints--;
 				allProjectiles[i].shouldDie = true;
 				if (this.hitPoints <= 0) {
-					this.state = enemyState.Dying;
+					changeState(this, enemyState.Dying);
 				}
 				break;
 			}
@@ -414,6 +492,7 @@ function enemyUpdateStates(enemy) {
 		++enemy.attackFrames;
 		if (enemy.attackFrames >= enemy.attackFramesMax) {
 			enemy.state = enemyState.Idling;
+			//changeState(this, enemyState.Idling);	// this isn't working, i am confused
 		}
 		break;
 	case enemyState.Dying:
@@ -903,11 +982,6 @@ function controls() {
 	if (debug) document.getElementById("test2").innerHTML = player.state;
 }
 
-function changeState(sprite, newState) {
-	sprite.stateChange = true;
-	sprite.state = newState;
-}
-
 function hitGround() {
 	if (player.gravitySpeed == 0 && player.hitGround) {
 		player.hitGround = false;
@@ -968,12 +1042,10 @@ function ouching() {
 
 function landing() {
 	player.wingBeats = 0;
-	
 	landingFrames++;
 	if (landingFrames > 30) {
 		landingFrames = 0;
 		changeState(player, playerState.Idling);
-		//player.state = playerState.Idling;
 	}
 }
 
@@ -987,7 +1059,6 @@ function gliding() {
 	if (player.gravitySpeed < 1) {
 		player.gravitySpeed += worldGravity;
 	}
-	
 }
 
 function jumping() {
@@ -1004,7 +1075,6 @@ function jumping() {
 }
 
 function flying() {
-	
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
 		flyingFrames = 0;
 		++player.wingBeats;
@@ -1020,6 +1090,11 @@ function flying() {
 		player.gravity = -worldGravity;
 		player.gravitySpeed = -2;
 	}
+}
+
+function changeState(sprite, newState) {
+	sprite.stateChange = true;
+	sprite.state = newState;
 }
 
 function inCameraView() {		
