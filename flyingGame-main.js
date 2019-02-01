@@ -167,7 +167,7 @@ function mainMenu() {
 		x1 = 225, y1 = 248, x2 = 10, y2 = 10,
 		selectors = ["Start Game", "Controls"], MAX = 1;
 	
-	ctx.drawImage(uiImgs[0], 0, 0, 700, 525);
+	ctx.drawImage(uiImgs[0], 0, 0, canvas.clientWidth, canvas.clientHeight);
 	
 	ctx.font = "30px Arial";
 	ctx.fillStyle = "#fff49f";
@@ -219,6 +219,8 @@ function loadGame() {
 	loading.push(loadImages(bgImgs, "imgs/levels/level1-clouds.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
 	
 	$.when.apply(null, loading).done(function() {
 		startGame();
@@ -227,6 +229,13 @@ function loadGame() {
 
 
 
+function displayHUD() {
+	var ctx = gameArea.context;
+	
+	ctx.drawImage(uiImgs[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's blood
+
+	ctx.drawImage(uiImgs[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
+}
 
 function startGame() {
     gameArea.start();
@@ -377,6 +386,8 @@ function updateGameArea() {
 	}
 	player.draw();
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "clouds");
+	
+	displayHUD();
 	
 }
 
@@ -648,7 +659,7 @@ function playerSprite(width, height, img, x, y) {
 	this.maxAccel = 2;
 	
 	this.hitGround = false;
-	this.hitPoints = 20;
+	this.hitPoints = 5;
 	this.invincible = 0;
 	this.invincibleFrames = 180;
 	
