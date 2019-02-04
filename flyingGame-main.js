@@ -8,7 +8,7 @@
  *  
  */
 
-var debug = true, showCollision = false;
+var debug = false, showCollision = false;
 
 var files;
 var player;
@@ -16,7 +16,6 @@ var allPlatforms = [], inViewPlatforms = [],
 	allProjectiles = [], 
 	allEnemies = [], inViewEnemies = [],dyingEnemies = [],
 	allCloudPlatforms = [], inViewCloudPlatforms = [];
-var offsetX, prevX = 0, prevY = 0;
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
@@ -31,7 +30,8 @@ var playerImgIndex = {
 
 var bgImgIndex = {
 		GROUND : 0,
-		CLOUDS : 1
+		CLOUDS : 1,
+		BG1    : 2
 	};
 
 var playerState = {
@@ -191,10 +191,16 @@ function loadGame() {
 
 	var loading = [];
 	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
+	// BACKGROUND
 	loading.push(loadImages(bgImgs, "imgs/levels/level1-ground.png"));
 	loading.push(loadImages(bgImgs, "imgs/levels/level1-clouds.png"));
+	loading.push(loadImages(bgImgs, "imgs/levels/level1-bg-1.png"));
+	
+	// PLAYER SPRITES
 	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
+	
+	// HUD
 	loading.push(loadImages(uiImgs, "imgs/hud.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
 	
@@ -261,7 +267,6 @@ function startGame() {
     gameLevel1();
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
-    
 }
 
 function gameLevel1() {
@@ -301,18 +306,20 @@ function spawnEnemy(type, x, y) {
 // ******************************** START UPDATE GAME ******************************** //
 // *********************************************************************************** //
 
-function updateGameArea() {
-	var ctx = gameArea.context;
-	
+function updateGameArea() {	
 	// first check if dead
 	if (player.state == playerState.Dying) {
+		var ctx = gameArea.context;
 		// temporary death screen
 		ctx.fillStyle = "Black";
 		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
+		
+		learInterval(gameArea.interval);
 		return;
 	}
 	
 	if (win()) {
+		var ctx = gameArea.context;
 		ctx.fillStyle = "Green";
 		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
 		
@@ -358,11 +365,19 @@ function updateGameArea() {
 		}
 	}
 	
+	renderGameArea();
+}
+
+function renderGameArea() {
+	var ctx = gameArea.context;
+	
 	// render stuff
 	ctx.setTransform(1,0,0,1,0,0);
 	ctx.clearRect(0,0, document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientHeight);
 	ctx.translate(-camera.x1, -camera.y1);
 	
+	drawSky();
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "bg-1");
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "ground");
 	
 	for (var i = 0; i < inViewEnemies.length; ++i) {
@@ -379,9 +394,22 @@ function updateGameArea() {
 	
 	player.draw();
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "clouds");
-	displayHUD();	
+	
+	displayHUD();
 }
 
+function drawSky() {
+	// can be based off of level
+	var ctx = gameArea.context;
+	
+	var lin = ctx.createLinearGradient(0, camera.y1, 1, camera.y1+300);
+	
+	lin.addColorStop(0, "#efe2c0");
+	lin.addColorStop(1, "#0b2834");
+	
+	ctx.fillStyle = lin;
+	ctx.fillRect(camera.x1,camera.y1, camera.x2, camera.y2);
+}
 
 function drawLevel(x, y, width, height, type) {
 	var ctx = gameArea.context, background = new Image();
@@ -391,6 +419,11 @@ function drawLevel(x, y, width, height, type) {
 	
 	if (type == "ground") {background.src = bgImgs[bgImgIndex.GROUND].src;}
 	if (type == "clouds") {background.src = bgImgs[bgImgIndex.CLOUDS].src;}
+	if (type == "bg-1") {
+		background.src = bgImgs[bgImgIndex.BG1].src;
+		ctx.drawImage(background, camera.x1>>3, (camera.y1>>2)-200, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
+		return;	
+	}
 
 	ctx.drawImage(background, camera.x1, camera.y1, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 	
@@ -913,8 +946,6 @@ function controls() {
 		else {
 			player.accel -= player.accelInc; 
 		}
-		
-		offsetX++; 
 		player.faceRight = false;
 	}
 	
@@ -927,7 +958,6 @@ function controls() {
 		else {
 			player.accel += player.accelInc;
 		}
-		offsetX--; 
 		player.faceRight = true;
 	}
 	
