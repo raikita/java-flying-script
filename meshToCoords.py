@@ -23,12 +23,14 @@ def parse(vector):
 
 # run script in object mode!
 print("writing...")
-f = open("/home/rukiya/eclipse-workspace/flyingGame/level1-clouds.txt", "w")
+f = open("/home/rukiya/eclipse-workspace/flyingGame/level1-ground.txt", "w")
 for item in bpy.data.objects:
-    if item.type == 'MESH' and item.name == 'level1-Clouds':
-        for face in item.data.polygons:
+    if item.type == 'MESH' and item.name == 'level':
+        for index, face in enumerate(item.data.polygons):
             for vertex in face.vertices:
                 coords = parse(item.data.vertices[vertex].co)
-                f.write(str(coords[0]) + " " + str(coords[1]) + "\n")
+                f.write(str(coords[0]) + " " + str(coords[1]))
+                if index + 1 < len(item.data.polygons):
+                    f.write("\n")
 f.close()
 print("write done")                

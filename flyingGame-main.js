@@ -21,17 +21,21 @@ var keydown = false, flyKeydown = false, shootKeydown = false;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
 var worldGravity = 0.07;
 var winSpot = {x:0, y:0, w:0, h:0};
-var playerImgs = [], bgImgs = [], uiImgs = [];
+var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [];
 
 var playerImgIndex = {
 		IDLE : 0,
 		WALK : 1
 	};
 
+var enemyImgIndex = {
+		IDLE : 0
+	};
+
 var bgImgIndex = {
-		GROUND : 0,
-		CLOUDS : 1,
-		BG1    : 2
+		LAYERMID : 0,
+		LAYERFRONT: 1,
+		LAYERBACK : 2,
 	};
 
 var playerState = {
@@ -200,6 +204,9 @@ function loadGame() {
 	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
 	
+	// ENEMY SPRITES
+	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
+	
 	// HUD
 	loading.push(loadImages(uiImgs, "imgs/hud.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
@@ -334,7 +341,7 @@ function updateGameArea() {
 	// update logic
 	controls();
 	player.updatePos();
-	if (debug) document.getElementById("test10").innerHTML = "projectile length: " + allProjectiles.length;
+	if (debug) document.getElementById("test10").innerHTML = "inViewEnemies: " + inViewEnemies.length;
 	
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].updatePos();
@@ -377,8 +384,8 @@ function renderGameArea() {
 	ctx.translate(-camera.x1, -camera.y1);
 	
 	drawSky();
-	drawLevel(player.x, player.y, camera.x2, camera.y2, "bg-1");
-	drawLevel(player.x, player.y, camera.x2, camera.y2, "ground");
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "layerBack");
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "layerMid");
 	
 	for (var i = 0; i < inViewEnemies.length; ++i) {
 		inViewEnemies[i].draw();
@@ -393,8 +400,9 @@ function renderGameArea() {
 	}
 	
 	player.draw();
-	drawLevel(player.x, player.y, camera.x2, camera.y2, "clouds");
-	
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "layerFront");
+	//drawLevel(player.x, player.y, camera.x2, camera.y2, "ground-front");
+	// TODO: MAKE ONNLY TWO LAYERS: FRONT AND BACK. CLOUDS ETC BELONG IN "FRONT"
 	displayHUD();
 }
 
@@ -402,7 +410,7 @@ function drawSky() {
 	// can be based off of level
 	var ctx = gameArea.context;
 	
-	var lin = ctx.createLinearGradient(0, camera.y1, 1, camera.y1+300);
+	var lin = ctx.createLinearGradient(0, camera.y1, 1, camera.y1+500);
 	
 	lin.addColorStop(0, "#efe2c0");
 	lin.addColorStop(1, "#0b2834");
@@ -417,10 +425,10 @@ function drawLevel(x, y, width, height, type) {
 	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length + 
 	"<br>player.x: " + player.x + "<br>player.y: " + player.y;
 	
-	if (type == "ground") {background.src = bgImgs[bgImgIndex.GROUND].src;}
-	if (type == "clouds") {background.src = bgImgs[bgImgIndex.CLOUDS].src;}
-	if (type == "bg-1") {
-		background.src = bgImgs[bgImgIndex.BG1].src;
+	if (type == "layerMid") {background.src = bgImgs[bgImgIndex.LAYERMID].src;}
+	if (type == "layerFront") {background.src = bgImgs[bgImgIndex.LAYERFRONT].src;}
+	if (type == "layerBack") {
+		background.src = bgImgs[bgImgIndex.LAYERBACK].src;
 		ctx.drawImage(background, camera.x1>>3, (camera.y1>>2)-200, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 		return;	
 	}
@@ -487,7 +495,7 @@ function playerSprite(width, height, img, x, y) {
 	this.accelInc = 0.01;
 	this.accelDec = 0.1;
 	this.accel = 0;
-	this.maxAccel = 2;
+	this.maxAccel = 3;
 	
 	this.hitGround = false;
 	this.hitPoints = 5;
@@ -555,13 +563,13 @@ function playerSprite(width, height, img, x, y) {
 			break;
 		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
-			drawSprite(this, this.image, 200, 200, this.width, this.height, this.maxFrames);
+			drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
 		}
 	}
 	
 	this.hitEdge = function () {
 		if (this.y + this.gravitySpeed > levelLimitsy) {
-			changeState(this, playerState.Jumping);
+			changeState(this, playerState.Dying);
 			return;
 		}
 		if (this.y + this.gravitySpeed < -200) {
@@ -604,6 +612,7 @@ function playerSprite(width, height, img, x, y) {
 			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
 				
 				// check if can slide down
+				/*
 				if (this.y + this.gravitySpeed > this.y && inViewPlatforms[i].type == "ground") {
 					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
 						this.x -= slopeFall;
@@ -614,7 +623,7 @@ function playerSprite(width, height, img, x, y) {
 						this.y += this.gravitySpeed;
 					}
 				}
-				
+				*/
 				// check if player hit the ground instead of ceiling
 				if (player.state != playerState.Gliding && player.state != playerState.Jumping && player.state != playerState.Flying) {
 					this.hitGround = true;
@@ -702,6 +711,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.width = width;
 	this.height = height;
+	this.faceRight = false;
 	
 	this.speedX = 0;
 	this.gravity = worldGravity;
@@ -716,6 +726,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.hitPoints = hitPoints;
 	
 	this.updatePos = function() {
+		this.facePlayer();
 		enemyUpdateStates(this);
 		
 		if (this.state != enemyState.Dying) {
@@ -745,24 +756,33 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 		
 		switch (this.state) {
 		case enemyState.Idling:
-			//this.image.src = playerImgs[playerImgIndex.IDLE].src;
-			ctx.fillStyle = "Orange";
-			this.maxFrames = 1;
+			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.maxFrames = 23;
 			break;
 		case enemyState.Attacking:
-			//this.image.src = playerImgs[playerImgIndex.WALK].src;
-			ctx.fillStyle = "Red";
-			this.maxFrames = 1;
+			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.maxFrames = 23;
 			break;
 		case enemyState.Dying:
-			ctx.fillStyle = "Black";
-			this.maxFrames = 1;
+			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.maxFrames = 23;
 			break;
 		}
-		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+		drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
 	}
 	
-	this.detectCollision = function () {
+	this.facePlayer = function() {
+		if (player.y+200 >= this.y && player.y-200 <= this.y) {
+			if (player.x > this.x) {
+				this.faceRight = false;
+			}
+			if (player.x < this.x) {
+				this.faceRight = true;
+			}
+		}
+	}
+	
+	this.detectCollision = function() {
 		// check if it hit player
 		//if (x y object width height)
 		if (collideObject(this.x, this.y, player, this.width*1.5, this.height*1.5)) {
@@ -1178,7 +1198,7 @@ function changeState(sprite, newState) {
 
 function inCameraView() {		
 	// radius larger for enemies and objects
-	var radiusSqr = (document.getElementById('canvas').clientWidth * document.getElementById('canvas').clientWidth) << 1;
+	var radiusSqr = (document.getElementById('canvas').clientWidth * document.getElementById('canvas').clientWidth);
 	
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
