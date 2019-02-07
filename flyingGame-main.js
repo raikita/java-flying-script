@@ -21,7 +21,7 @@ var keydown = false, flyKeydown = false, shootKeydown = false;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
 var worldGravity = 0.07;
 var winSpot = {x:0, y:0, w:0, h:0};
-var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [];
+var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [];
 
 var playerImgIndex = {
 		IDLE : 0,
@@ -30,6 +30,10 @@ var playerImgIndex = {
 
 var enemyImgIndex = {
 		IDLE : 0
+	};
+
+var projectileImgIndex = {
+		FIRE : 0,
 	};
 
 var bgImgIndex = {
@@ -118,12 +122,12 @@ var gameArea = {
 	        });
 	    },
 	    mainMenu : function() {
-	    	this.mainMenuInterval = setInterval(mainMenu, 0.02);
+	    	this.mainMenuInterval = setInterval(mainMenu, 0.03);
 	    	this.selection = 0;
 	    },
 	    start : function() {
 	        this.context = this.canvas.getContext("2d");
-	        this.interval = setInterval(updateGameArea, 0.02);
+	        this.interval = setInterval(updateGameArea, 0.03);	// play at 30fps OuO;;;;
 	    }
 };
 
@@ -207,6 +211,9 @@ function loadGame() {
 	// ENEMY SPRITES
 	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
 	
+	// PROJECTILE SPRITES
+	loading.push(loadImages(projectileImgs, "imgs/projectiles/fire.png"));
+	
 	// HUD
 	loading.push(loadImages(uiImgs, "imgs/hud.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
@@ -289,7 +296,30 @@ function gameLevel1() {
     spawnEnemy(1, 500, 1220);
     spawnEnemy(1, 700, 1220);
     spawnEnemy(1, 350, 1220);
-    spawnEnemy(1, 300, 360);
+    spawnEnemy(1, 5450, 880);
+    spawnEnemy(1, 3430, 1630);
+    spawnEnemy(1, 2688, 1500);
+    spawnEnemy(1, 2550, 1830);
+    spawnEnemy(1, 2270, 1835);
+    spawnEnemy(1, 1990, 1830);
+    spawnEnemy(1, 1705, 1830);
+    spawnEnemy(1, 1325, 1700);
+    spawnEnemy(1, 1300, 1595);
+    spawnEnemy(1, 900, 1650);
+    spawnEnemy(1, 580, 1830);
+    spawnEnemy(1, 700, 1850);
+    spawnEnemy(1, 300, 1680);
+    spawnEnemy(1, 835, 690);
+    spawnEnemy(1, 1030, 890);
+    spawnEnemy(1, 2945, 610);
+    spawnEnemy(1, 2955, 500);
+    spawnEnemy(1, 4150, 710);
+    spawnEnemy(1, 7185, 1870);
+    spawnEnemy(1, 7110, 670);
+    spawnEnemy(1, 7110, 850);
+    spawnEnemy(1, 1980, 1590);
+    spawnEnemy(1, 2090, 1590);
+    spawnEnemy(1, 4590, 1860);    
     
     winSpot.x = 7530;
     winSpot.y = 1260;
@@ -542,7 +572,7 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 8;	// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 35;
 	this.stateChange = false;
 	
@@ -738,14 +768,14 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 8;		// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 35;
 	this.stateChange = false;
 	
 	this.attackFrames = 0;
 	this.attackFramesMax = 50;
 	this.dyingFrames = 0;
-	this.dyingFramesMax = 50;
+	this.dyingFramesMax = 100;
 	
 	this.draw = function () {
 		var ctx = gameArea.context;
@@ -768,7 +798,17 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 			this.maxFrames = 23;
 			break;
 		}
+		
+		// make fade away when dying for now
+		if (this.dyingFrames > 0) {
+			ctx.save();
+			ctx.globalAlpha = 1 - (this.dyingFrames/100);
+		}
 		drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
+		
+		if (this.dyingFrames > 0) {
+			ctx.restore();
+		}
 	}
 	
 	this.facePlayer = function() {
@@ -829,6 +869,13 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.numBounce = 0;
 	this.lifeSpan = 180;	// lives for how many frames
 	this.shouldDie = false;
+	this.dying = false;
+	this.dyingFrames = 20;
+	
+	this.frameIndex = 0;		// current frame to be displayed
+	this.tickCount = 0;			// number of updates since current frame was first displayed
+	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
+	this.maxFrames = 6;
 	
 	this.updatePos = function() {
 		this.lifeSpan--;
@@ -850,10 +897,10 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	
 	this.draw = function () {
 		// do this one when image exists
-		// drawSprite(this, this.image, 200, 200, this.width, this.height, 35);
-		var ctx = gameArea.context;
-		ctx.fillStyle = colour;
-		ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+		this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
+		this.maxFrames = 5;
+
+		drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
 	}
 	
 	this.detectCollision = function() {
@@ -865,7 +912,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {				
 				this.gravitySpeed *= -0.9;
 				if (this.bounces) {
-					this.numBounce++;
+					//this.numBounce++;
 				}
 				break;
 			}
@@ -884,8 +931,8 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			
 			// check just x collision
 			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height)) {
-				this.speedX *= -0.3;
-				this.numBounce++;
+				this.speedX *= -0.9;
+				//this.numBounce++;
 				break;
 			}	
 		}
@@ -917,7 +964,7 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 	if (sprite.frameIndex > numFrames) {
 		sprite.frameIndex = 1;
 	}
-	
+
 	if (sprite.faceRight) {
 		ctx.drawImage(spriteImg, sx, sy, sw, sh, dx, dy, dw, dh);
 	} else {
@@ -926,7 +973,7 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 		ctx.drawImage(spriteImg, sx, sy, sw, sh, dx2, dy, dw, dh);
 		ctx.setTransform(1, 0, 0, 1, 0, 0);
 		ctx.restore();
-	}	
+	}
 }
 
 function enemyUpdateStates(enemy) {
