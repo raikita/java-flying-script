@@ -1239,7 +1239,7 @@ function jumping() {
 	}
 	
 	jumpingFrames++;
-	if (jumpingFrames >= 2 || (!gameArea.keys || !gameArea.keys[key.a] && jumpingFrames > 10)) {
+	if (jumpingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && jumpingFrames > 10)) {
 		player.accelY = 1;
 		if (player.speedY >= 0) {
 		changeState(player, playerState.Falling);
