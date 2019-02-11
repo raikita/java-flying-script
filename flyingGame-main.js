@@ -8,7 +8,7 @@
  *  
  */
 
-var debug = false, showCollision = false;
+var debug = true, showCollision = false;
 
 var files;
 var player;
@@ -19,7 +19,7 @@ var allPlatforms = [], inViewPlatforms = [],
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
-var worldGravity = 0.07;
+var worldGravity = 5;
 var winSpot = {x:0, y:0, w:0, h:0};
 var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [];
 
@@ -79,18 +79,18 @@ var camera = {
 		x2 : document.getElementById('canvas').clientWidth,
 		y2 : document.getElementById('canvas').clientHeight,
 		update : function() {
-			camera.x1 = player.x - document.getElementById('canvas').clientWidth/2;
-			camera.y1 = player.y - document.getElementById('canvas').clientHeight/2;
+			camera.x1 = player.x - gameArea.canvas.clientWidth/2;
+			camera.y1 = player.y - gameArea.canvas.clientHeight/2;
 			if (camera.x1 < 0) camera.x1 = 0;
 			if (camera.y1 < 0) camera.y1 = 0;
-			if (camera.x1 > levelLimitsx - document.getElementById('canvas').clientWidth) {
-				camera.x1 = levelLimitsx - document.getElementById('canvas').clientWidth;
+			if (camera.x1 > levelLimitsx - gameArea.canvas.clientWidth) {
+				camera.x1 = levelLimitsx - gameArea.canvas.clientWidth;
 			}
-			if (camera.y1 > levelLimitsy - document.getElementById('canvas').clientHeight) {
-				camera.y1 = levelLimitsy - document.getElementById('canvas').clientHeight;
+			if (camera.y1 > levelLimitsy - gameArea.canvas.clientHeight) {
+				camera.y1 = levelLimitsy - gameArea.canvas.clientHeight;
 			}
-			camera.x2 = camera.x1 + document.getElementById('canvas').clientWidth;
-			camera.y2 = camera.y2 + document.getElementById('canvas').clientHeight;
+			camera.x2 = camera.x1 + gameArea.canvas.clientWidth;
+			camera.y2 = camera.y2 + gameArea.canvas.clientHeight;
 		}
 };
 
@@ -122,12 +122,14 @@ var gameArea = {
 	        });
 	    },
 	    mainMenu : function() {
-	    	this.mainMenuInterval = setInterval(mainMenu, 0.03);
+	    	this.mainMenuInterval = setInterval(mainMenu, 0.02);
 	    	this.selection = 0;
 	    },
 	    start : function() {
 	        this.context = this.canvas.getContext("2d");
-	        this.interval = setInterval(updateGameArea, 0.03);	// play at 30fps OuO;;;;
+	        animatefps(60);
+	        //this.interval = setInterval(updateGameArea, 0.016);	// play at 30fps OuO;;;;
+	        //requestAnimationFrame(updateGameArea);
 	    }
 };
 
@@ -277,10 +279,10 @@ function loadFile() {
 // *********************************************************************************** //
 
 function startGame() {
-    gameArea.start();
     gameLevel1();
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
+    gameArea.start();
 }
 
 function gameLevel1() {
@@ -343,7 +345,21 @@ function spawnEnemy(type, x, y) {
 // ******************************** START UPDATE GAME ******************************** //
 // *********************************************************************************** //
 
-function updateGameArea() {	
+var frameCount = 0;
+var $results = $("#results");
+var fpsInterval, startTime, now, then, elapsed;
+
+function animatefps(fps) {
+	fpsInterval = 1000/fps;
+	then = Date.now();
+	startTime = then;
+	requestAnimationFrame(updateGameArea);
+}
+
+function updateGameArea() {
+	now = Date.now();
+	elapsed = now - then;
+	
 	// first check if dead
 	if (player.state == playerState.Dying) {
 		var ctx = gameArea.context;
@@ -351,7 +367,7 @@ function updateGameArea() {
 		ctx.fillStyle = "Black";
 		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
 		
-		learInterval(gameArea.interval);
+		//clearInterval(gameArea.interval);
 		return;
 	}
 	
@@ -360,7 +376,7 @@ function updateGameArea() {
 		ctx.fillStyle = "Green";
 		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
 		
-		clearInterval(gameArea.interval);
+		//clearInterval(gameArea.interval);
 		return;		
 	}
 	
@@ -401,16 +417,29 @@ function updateGameArea() {
 			delete dyingEnemies.splice(i, 1);
 		}
 	}
+	if (elapsed > fpsInterval) {
+		then = now - (elapsed % fpsInterval);
+		renderGameArea();
+
+		//document.getElementById("test10").innerHTML = "elapsed: "+elapsed + "<br>fps?: " + (1 / elapsed) * 1000 +"<br>fpsInterval: "+ fpsInterval;
+		// render stuff
+	}
+
+	var sinceStart = now - startTime;
+	var currentFps = Math.round(1000 / (sinceStart/++frameCount)
+	*100)/100;
 	
-	renderGameArea();
+	document.getElementById("test10").innerHTML = currentFps;
+	requestAnimationFrame(updateGameArea);
 }
 
 function renderGameArea() {
 	var ctx = gameArea.context;
-	
+
+	//document.getElementById("test10").innerHTML = "elapsed: "+elapsed + "<br>fps?: " + (1 / elapsed) * 1000 +"<br>fpsInterval: "+ fpsInterval;
 	// render stuff
 	ctx.setTransform(1,0,0,1,0,0);
-	ctx.clearRect(0,0, document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientHeight);
+	ctx.clearRect(0,0, gameArea.canvas.clientWidth, gameArea.canvas.clientHeight);
 	ctx.translate(-camera.x1, -camera.y1);
 	
 	drawSky();
@@ -431,8 +460,7 @@ function renderGameArea() {
 	
 	player.draw();
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "layerFront");
-	//drawLevel(player.x, player.y, camera.x2, camera.y2, "ground-front");
-	// TODO: MAKE ONNLY TWO LAYERS: FRONT AND BACK. CLOUDS ETC BELONG IN "FRONT"
+	drawLevel(player.x, player.y, camera.x2, camera.y2, "ground-front");
 	displayHUD();
 }
 
@@ -515,17 +543,17 @@ function playerSprite(width, height, img, x, y) {
 	this.x = x;
 	this.y = y;
 	
-	this.gravity = worldGravity;
-	this.gravitySpeed = 0;
-	this.maxGravitySpeed = 5;
-	this.maxFlySpeed = -3;
+	this.accelY = worldGravity;
+	this.speedY = 0;
+	this.maxGravitySpeed = 10;
+	this.maxFlySpeed = -10;
 	this.maxWingBeats = 5;
 	this.wingBeats = 0;
 	
-	this.accelInc = 0.01;
-	this.accelDec = 0.1;
+	this.accelInc = 0.4;
+	this.accelDec = 0.5;
 	this.accel = 0;
-	this.maxAccel = 3;
+	this.maxAccel = 10;
 	
 	this.hitGround = false;
 	this.hitPoints = 5;
@@ -550,24 +578,25 @@ function playerSprite(width, height, img, x, y) {
 	}
 	
 	this.updatePos = function() {
-		if (this.gravitySpeed + this.gravity <= this.maxGravitySpeed &&
-			this.gravitySpeed + this.gravity >= this.maxFlySpeed) {
-			this.gravitySpeed += this.gravity;
+		++this.tickCount;
+		if (this.speedY + this.accelY <= this.maxGravitySpeed &&
+			this.speedY + this.accelY >= this.maxFlySpeed) {
+			this.speedY += this.accelY;
 		}
 		
 		if (this.invincible > 0) {
 			this.invincible--;
 		}
 		
-		this.speedX += this.accel;			
+		this.speedX = this.accel;			
 		
 		this.hitEdge();
 		this.detectCollision();
-		//this.y += this.gravitySpeed;
+		
 		this.x += this.speedX;
 		
 		if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ",<br> accel:  " + player.accel;
-		if (debug) document.getElementById("test5").innerHTML = "gravitySpeed: " + this.gravitySpeed + ",<br> gravity: " + this.gravity;
+		if (debug) document.getElementById("test5").innerHTML = "speedY: " + this.speedY + ",<br> accelY: " + this.accelY;
 	}
 	
 	this.frameIndex = 0;		// current frame to be displayed
@@ -598,11 +627,11 @@ function playerSprite(width, height, img, x, y) {
 	}
 	
 	this.hitEdge = function () {
-		if (this.y + this.gravitySpeed > levelLimitsy) {
+		if (this.y + this.speedY > levelLimitsy) {
 			changeState(this, playerState.Dying);
 			return;
 		}
-		if (this.y + this.gravitySpeed < -200) {
+		if (this.y + this.speedY < -200) {
 			changeState(this, playerState.Jumping);
 		}
 		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
@@ -622,7 +651,7 @@ function playerSprite(width, height, img, x, y) {
 		// if hit by enemy
 		if (this.state != playerState.Ouching && this.invincible <= 0) {
 			for (var i = 0; i < inViewEnemies.length; ++i) {
-				if (collideObject(this.x, this.y + this.gravitySpeed, inViewEnemies[i], this.width, this.height) || 
+				if (collideObject(this.x, this.y + this.speedY, inViewEnemies[i], this.width, this.height) || 
 					collideObject(this.x + this.speedX, this.y, inViewEnemies[i], this.width, this.height)) {
 					--this.hitPoints;
 					if (this.hitPoints > 0) {
@@ -639,21 +668,7 @@ function playerSprite(width, height, img, x, y) {
 		for (var i = 0; i < inViewPlatforms.length; ++i) {	
 			
 			// check just y collision
-			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
-				
-				// check if can slide down
-				/*
-				if (this.y + this.gravitySpeed > this.y && inViewPlatforms[i].type == "ground") {
-					if (!collide(this.x - slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
-						this.x -= slopeFall;
-						this.y += this.gravitySpeed;
-					}
-					else if (!collide(this.x + slopeFall, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {
-						this.x += slopeFall;
-						this.y += this.gravitySpeed;
-					}
-				}
-				*/
+			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height)) {
 				// check if player hit the ground instead of ceiling
 				if (player.state != playerState.Gliding && player.state != playerState.Jumping && player.state != playerState.Flying) {
 					this.hitGround = true;
@@ -664,21 +679,20 @@ function playerSprite(width, height, img, x, y) {
 				this.notCollidingY = 0;
 				
 				if (inViewPlatforms[i].type == "ground") {
-					this.gravitySpeed = 0;
+					this.speedY = 0;
 					if (this.state == playerState.Gliding) {
 						changeState(this, playerState.Falling);
-						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test4").innerHTML = "y Ground Collision ";
 				}
 				else if (inViewPlatforms[i].type == "cloud") {
-					if (this.gravitySpeed > 0) {
-						this.gravitySpeed *= 0.5;
+					if (this.accelY > 0) {
+						this.accelY *= 0.5;
+						this.speedY *= 0.5;
 					}
 					this.wingBeats = 0;
 					if (this.state == playerState.Gliding) {
-						changeState(this, playerState.Falling);
-						//this.state = playerState.Falling;	// making it a different type of falling animation
+						changeState(this, playerState.Falling); // making it a different type of falling animation
 					}
 					if (debug) document.getElementById("test4").innerHTML = "y Cloud Collision ";
 				}
@@ -688,7 +702,7 @@ function playerSprite(width, height, img, x, y) {
 			++this.notCollidingY;
 			if (this.notCollidingY > 450) this.notCollidingY = 450;
 		}
-		this.y += this.gravitySpeed;
+		this.y += this.speedY;
 		
 		// x collision
 		for (var i = 0; i < inViewPlatforms.length; ++i) {
@@ -744,8 +758,8 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.faceRight = false;
 	
 	this.speedX = 0;
-	this.gravity = worldGravity;
-	this.gravitySpeed = 0;
+	this.accelY = worldGravity;
+	this.speedY = 0;
 	
 	this.x = x;
 	this.y = y;
@@ -756,11 +770,12 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.hitPoints = hitPoints;
 	
 	this.updatePos = function() {
+		++this.tickCount;
 		this.facePlayer();
 		enemyUpdateStates(this);
 		
 		if (this.state != enemyState.Dying) {
-			this.gravitySpeed += this.gravity;
+			this.speedY += this.accelY;
 			this.detectCollision();
 		}
 		
@@ -859,8 +874,8 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.startingSpeed = startingSpeed;
 	this.direction = direction;
 	this.speedX = direction ? 3 + this.startingSpeed : -3 + this.startingSpeed;
-	this.gravity = worldGravity;
-	this.gravitySpeed = -2;
+	this.accelY = worldGravity;
+	this.speedY = -2;
 	this.owner = owner;		// true if player's, false if enemy's
 	this.bounces = bounces; // if it bounces or not, dies after x amount of bounces
 	this.x = x;
@@ -878,13 +893,14 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.maxFrames = 6;
 	
 	this.updatePos = function() {
+		++this.tickCount;
 		this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
 			this.shouldDie = true;
 			return;
 		}
 		
-		this.gravitySpeed += this.gravity;
+		this.speedY += this.accelY;
 		
 		this.detectCollision();
 		if (this.numBounce > 10) {
@@ -892,11 +908,10 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 		}
 		
 		this.x += this.speedX;
-		this.y += this.gravitySpeed;
+		this.y += this.speedY;
 	}
 	
 	this.draw = function () {
-		// do this one when image exists
 		this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
 		this.maxFrames = 5;
 
@@ -909,8 +924,8 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 		// y collision
 		for (i = 0; i < inViewPlatforms.length; ++i) {
 			// check just y collision
-			if (collide(this.x, this.y + this.gravitySpeed, inViewPlatforms[i], this.width, this.height)) {				
-				this.gravitySpeed *= -0.9;
+			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height)) {				
+				this.speedY *= -0.9;
 				if (this.bounces) {
 					//this.numBounce++;
 				}
@@ -924,7 +939,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			for (j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height)) {
-					this.gravitySpeed *= -0.9;
+					this.speedY *= -0.9;
 					break;
 				}
 			}
@@ -956,11 +971,20 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 		dw = width+colAdj, 					// frame width (destination)
 		dh = height+colAdj;					// frame height (destination)
 	
-	++sprite.tickCount;
-	if (sprite.tickCount > sprite.ticksPerFrame) {
+	//sprite.tickCount += (elapsed);
+	
+	var sinceStart = now - startTime;
+	var currentFps = Math.round(1000 / (sinceStart/frameCount));
+	
+	document.getElementById("test9").innerHTML = currentFps;
+	
+	
+	//++sprite.tickCount;
+	if (sprite.tickCount > 1) {
 		sprite.tickCount = 0;
 		++sprite.frameIndex;
 	}
+	
 	if (sprite.frameIndex > numFrames) {
 		sprite.frameIndex = 1;
 	}
@@ -1001,9 +1025,7 @@ function enemyUpdateStates(enemy) {
 // *********************************** END SPRITE STUFF ****************************** //
 // *********************************************************************************** //
 
-function controls() {
-	player.speedX = 0;
-	
+function controls() {	
 	// move left
 	if (gameArea.keys && gameArea.keys[key.left]) {
 		if (player.accel > 0) {
@@ -1035,6 +1057,7 @@ function controls() {
 	
 	// slow down if player stopped pressing key
 	if (gameArea.keys && !(gameArea.keys[key.left] || gameArea.keys[key.right])) {
+		player.speedX *= 0.5;
 		if (player.accel < 0) {
 			if (player.state == playerState.Gliding || player.state == playerState.Flying) {
 				player.accel += player.accelDec*0.2;
@@ -1078,7 +1101,7 @@ function updatePlayerStates() {
 		else if (gameArea.keys && (gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			changeState(player, playerState.Running);
 		}
-		else if (player.gravitySpeed >= 3) {
+		else if (player.speedY >= 3) {
 			changeState(player, playerState.Falling);
 		}
 		idling();
@@ -1100,7 +1123,7 @@ function updatePlayerStates() {
 		break;
 	case playerState.Gliding:
 		gliding();
-		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats < player.maxWingBeats) {
 			changeState(player, playerState.Flying);
 		}
 		if (gameArea.keys && gameArea.keys[key.down]) {
@@ -1108,7 +1131,7 @@ function updatePlayerStates() {
 		}
 		break;
 	case playerState.Falling:
-		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats <= player.maxWingBeats) {
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats < player.maxWingBeats) {
 			changeState(player, playerState.Flying);
 		}
 		falling();
@@ -1131,34 +1154,39 @@ function updatePlayerStates() {
 }
 
 function hitGround() {
-	if (player.gravitySpeed == 0 && player.hitGround) {
+	if (player.speedY == 0 && player.hitGround) {
 		player.hitGround = false;
-		player.gravity = 2;
+		player.accelY = 2;
 		return true;
 	}
 	return false;
 }
 
 function idling() {
-	player.gravity = worldGravity;
+	player.accelY = worldGravity;
 	player.wingBeats = 0;
 	
 }
 
 function running() {
-	player.gravity = 2;
+	player.accelY = 2;
 	player.wingBeats = 0;
 	if (player.notCollidingY > 400) {
 		changeState(player, playerState.Falling);
-		player.gravitySpeed = 0;
+		player.accelY = 0;
 		player.notCollidingY = 400;
 	}
 }
 
 function falling() {
-	player.gravity = worldGravity;
+	if (player.accelY < 0) {
+		player.accelY = 0;
+	}
+
+	player.accelY += 0.2;
+
 	
-	if (player.gravitySpeed == 0) {
+	if (player.speedY == 0) {
 		if (hitGround()) {
 			changeState(player, playerState.Landing);
 		}
@@ -1171,8 +1199,8 @@ function ouching() {
 	player.accel = 0;
 	
 	if (ouchingFrames == 1) {
-		player.gravitySpeed = -3;
-		player.gravity = worldGravity;
+		player.speedY = -3;
+		player.accelY = worldGravity;
 		player.invincible = player.invincibleFrames;
 	}
 	if (ouchingFrames >= 100) {
@@ -1189,34 +1217,40 @@ function ouching() {
 function landing() {
 	player.wingBeats = 0;
 	landingFrames++;
-	if (landingFrames > 30) {
+	if (landingFrames > 15) {
 		landingFrames = 0;
 		changeState(player, playerState.Idling);
 	}
 }
 
-function gliding() {
-	if (player.gravity < worldGravity) {
-		player.gravity += 0.01;
+function gliding() {	
+	if (player.accelY < 0) {
+		player.accelY = 0;
 	}
-	if (player.gravitySpeed > 1) {
-		player.gravitySpeed -= worldGravity;
-	}
-	if (player.gravitySpeed < 1) {
-		player.gravitySpeed += worldGravity;
-	}
+	if (player.accelY < worldGravity) {
+		player.accelY += 0.03;
+	}	
 }
 
 function jumping() {
 	flyKeydown = false;
+	if (jumpingFrames == 0 && player.accelY > 0) {
+		player.accelY = 0;
+	}
+	
 	jumpingFrames++;
-	if (jumpingFrames > 30) {
+	if (jumpingFrames >= 2 || (!gameArea.keys || !gameArea.keys[key.a] && jumpingFrames > 10)) {
+		player.accelY = 1;
+		if (player.speedY >= 0) {
 		changeState(player, playerState.Falling);
 		jumpingFrames = 0;
+		}
 	}
 	else {
-		player.gravity = -worldGravity;
-		player.gravitySpeed = -3;
+		player.accelY -= 1;
+		if (player.accelY < -6) {
+			player.accelY = -6;
+		}
 	}
 }
 
@@ -1228,13 +1262,15 @@ function flying() {
 	
 	flyKeydown = false;
 	flyingFrames++;
-	if (flyingFrames > 30) {
+	if (flyingFrames > 15) {
 		changeState(player, playerState.Gliding);
 		flyingFrames = 0;
 	}
 	else {
-		player.gravity = -worldGravity;
-		player.gravitySpeed = -2;
+		player.accelY -= 2;
+		if (player.accelY < -6) {
+			player.accelY = -6;
+		}
 	}
 }
 
@@ -1245,11 +1281,11 @@ function changeState(sprite, newState) {
 
 function inCameraView() {		
 	// radius larger for enemies and objects
-	var radiusSqr = (document.getElementById('canvas').clientWidth * document.getElementById('canvas').clientWidth);
+	var radiusSqr = (gameArea.canvas.clientWidth * gameArea.canvas.clientWidth);
 	
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
-		if (collide(player.x, player.y, allPlatforms[i], document.getElementById('canvas').clientWidth, document.getElementById('canvas').clientWidth)) {
+		if (collide(player.x, player.y, allPlatforms[i], gameArea.canvas.clientWidth, gameArea.canvas.clientWidth)) {
 			inViewPlatforms.push(allPlatforms[i]);
 		}
 	}
