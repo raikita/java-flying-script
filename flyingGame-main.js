@@ -152,14 +152,14 @@ function mainMenu() {
 	var canvas = document.getElementById("canvas"),
 		ctx = canvas.getContext("2d"),
 		x1 = 225, y1 = 248, x2 = 10, y2 = 10,
-		selectors = ["Start Game", "Controls"], MAX = 1;
+		selectors = ["Start Game"], MAX = 0;
 	
 	ctx.drawImage(uiImgs[0], 0, 0, canvas.clientWidth, canvas.clientHeight);
 	
 	ctx.font = "30px Arial";
 	ctx.fillStyle = "#fff49f";
-	ctx.fillText("Begin Game", 250, 262);
-	ctx.fillText("View Controls", 250, 312);
+	ctx.fillText("Press Enter ", 250, 262);
+	//ctx.fillText("to Begin", 250, 312);
 
 	// allow looping of selecting
 	if (gameArea.keys && gameArea.keys[key.up]) {
@@ -176,13 +176,14 @@ function mainMenu() {
 			gameArea.selection = MAX;
 		}
 	}
+	/*
 	if (gameArea.selection == 0) {
 		ctx.fillRect(x1, y1, x2, y2);
 	}
 	if (gameArea.selection == 1) {
 		ctx.fillRect(x1, y1+50, x2, y2);
 	}
-	
+	*/
 	// begin game
 	if (gameArea.selection == 0 && gameArea.keys && (gameArea.keys[key.a] || gameArea.keys[key.enter])) {
 		gameArea.keys = false;
@@ -802,7 +803,6 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 			this.speedY += this.accelY;
 			this.detectCollision();
 		}
-		
 	}
 	
 	this.frameIndex = 0;		// current frame to be displayed
