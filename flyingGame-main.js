@@ -237,8 +237,18 @@ function loadImages(array, src) {
 function loadingScreen() {
 	var canvas = document.getElementById("canvas");
 	var ctx = canvas.getContext("2d");
+	var lin = ctx.createLinearGradient(0, 0, 1, 525);
 	
-	ctx.fillRect(0, 0, canvas.width, canvas.height);
+	lin.addColorStop(0, "#efe2c0");
+	lin.addColorStop(1, "#0b2834");
+	
+	ctx.fillStyle = lin;
+	ctx.fillRect(0, 0, 700, 526);
+	
+	ctx.fillStyle = "black";
+	ctx.font = "bold 50px Arial";
+	ctx.fillText("LOADING....", (canvas.width / 2) - 150, (canvas.height / 2) + 25);
+	
 }
 
 function loadFile() {
@@ -427,7 +437,7 @@ function updateGameArea() {
 	var currentFps = Math.round(1000 / (sinceStart/++frameCount)
 	*100)/100;
 	
-	document.getElementById("test10").innerHTML = currentFps;
+	if (debug) document.getElementById("test10").innerHTML = currentFps;
 	requestAnimationFrame(updateGameArea);
 }
 
@@ -990,7 +1000,7 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 	var sinceStart = now - startTime;
 	var currentFps = Math.round(1000 / (sinceStart/frameCount));
 	
-	document.getElementById("test9").innerHTML = currentFps;
+	if (debug) document.getElementById("test9").innerHTML = currentFps;
 	
 	
 	//++sprite.tickCount;
