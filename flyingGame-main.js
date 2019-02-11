@@ -1,6 +1,4 @@
 /*
- *  TODO: Show off iridescence: enter lit area, scales shine
- *  TODO: Level Design
  *  TODO: 2 more types of enemies: moving and shooting if seen, moving only
  *  TODO: Animations
  *  TODO: Start screen
@@ -8,7 +6,7 @@
  *  
  */
 
-var debug = true, showCollision = false;
+var debug = false, showCollision = false;
 
 var files;
 var player;
@@ -18,7 +16,7 @@ var allPlatforms = [], inViewPlatforms = [],
 	allCloudPlatforms = [], inViewCloudPlatforms = [];
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 var keydown = false, flyKeydown = false, shootKeydown = false;
-var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0;
+var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0;
 var worldGravity = 5;
 var winSpot = {x:0, y:0, w:0, h:0};
 var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [];
@@ -361,7 +359,7 @@ function updateGameArea() {
 	elapsed = now - then;
 	
 	// first check if dead
-	if (player.state == playerState.Dying) {
+	if (player.kill) {
 		var ctx = gameArea.context;
 		// temporary death screen
 		ctx.fillStyle = "Black";
@@ -545,7 +543,7 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.accelY = worldGravity;
 	this.speedY = 0;
-	this.maxGravitySpeed = 10;
+	this.maxGravitySpeed = 15;
 	this.maxFlySpeed = -10;
 	this.maxWingBeats = 5;
 	this.wingBeats = 0;
@@ -558,7 +556,8 @@ function playerSprite(width, height, img, x, y) {
 	this.hitGround = false;
 	this.hitPoints = 5;
 	this.invincible = 0;
-	this.invincibleFrames = 180;
+	this.invincibleFrames = 90;
+	this.kill = false;
 	
 	this.notCollidingY = 0;
 	
@@ -579,9 +578,9 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.updatePos = function() {
 		++this.tickCount;
-		if (this.speedY + this.accelY <= this.maxGravitySpeed &&
-			this.speedY + this.accelY >= this.maxFlySpeed) {
-			this.speedY += this.accelY;
+		if ((this.speedY + this.accelY <= this.maxGravitySpeed &&
+			this.speedY + this.accelY >= this.maxFlySpeed) || this.state == playerState.Ouching) {
+			this.speedY += this.accelY;			
 		}
 		
 		if (this.invincible > 0) {
@@ -632,7 +631,7 @@ function playerSprite(width, height, img, x, y) {
 			return;
 		}
 		if (this.y + this.speedY < -200) {
-			changeState(this, playerState.Jumping);
+			changeState(this, playerState.Falling);
 		}
 		if (this.x + this.speedX > levelLimitsx || this.x + this.speedX < 0) {
 			this.speedX = 0;
@@ -640,7 +639,7 @@ function playerSprite(width, height, img, x, y) {
 	}
 	
 	this.detectCollision = function() {
-		var slopeMax = 3,
+		var slopeMax = 20,
 		slopeFall = 0.1; // slopeFall: The lower the number, the more steep cliff has to be to slide
 
 
@@ -705,20 +704,35 @@ function playerSprite(width, height, img, x, y) {
 		this.y += this.speedY;
 		
 		// x collision
+		var prevThisY = this.y;
 		for (var i = 0; i < inViewPlatforms.length; ++i) {
-			// check if can move up or down slopes
+			// check if can move up slopes
 			if (inViewPlatforms[i].type == "ground") {
 				// slope up
-				for (var n = 0; n <= slopeMax; n += 0.1) {
+				for (var n = 0; n <= slopeMax; ++n) {
 					if (collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						continue;
 					}
 					if (!collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						this.y -= n;
-						if (debug) document.getElementById("test3").innerHTML = "slope Up " + n;
+						var decreaseAccel = 0;
+						if (prevThisY-this.y > 10) {
+							//var decreaseAccel = this.accel;
+							decreaseAccel = (prevThisY-this.y)/10;
+							if (this.accel < -5) {
+								this.accel = -5;
+							}
+							else if (this.accel > 5) {
+								this.accel = 5;
+							}
+						}
+						if (debug) document.getElementById("test3").innerHTML = "slope Up " +(prevThisY-this.y) +"<br>" + decreaseAccel;
+
+						
+
 						break;
 					}
-				}				
+				}
 			}
 			
 			// check just x collision
@@ -790,7 +804,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.attackFrames = 0;
 	this.attackFramesMax = 50;
 	this.dyingFrames = 0;
-	this.dyingFramesMax = 100;
+	this.dyingFramesMax = 50;
 	
 	this.draw = function () {
 		var ctx = gameArea.context;
@@ -817,7 +831,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 		// make fade away when dying for now
 		if (this.dyingFrames > 0) {
 			ctx.save();
-			ctx.globalAlpha = 1 - (this.dyingFrames/100);
+			ctx.globalAlpha = 1 - (this.dyingFrames/50);
 		}
 		drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
 		
@@ -873,16 +887,16 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	
 	this.startingSpeed = startingSpeed;
 	this.direction = direction;
-	this.speedX = direction ? 3 + this.startingSpeed : -3 + this.startingSpeed;
-	this.accelY = worldGravity;
-	this.speedY = -2;
+	this.speedX = direction ? 10 + this.startingSpeed : -10 + this.startingSpeed;
+	this.accelY = 1;
+	this.speedY = -5;
 	this.owner = owner;		// true if player's, false if enemy's
 	this.bounces = bounces; // if it bounces or not, dies after x amount of bounces
 	this.x = x;
 	this.y = y;
 	
 	this.numBounce = 0;
-	this.lifeSpan = 180;	// lives for how many frames
+	this.lifeSpan = 90;	// lives for how many frames
 	this.shouldDie = false;
 	this.dying = false;
 	this.dyingFrames = 20;
@@ -919,12 +933,12 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 	
 	this.detectCollision = function() {
-		var slopeMax = 5, slopeFall = 0.1;
+		var slopeMax = 20, slopeFall = 0.1;
 		
 		// y collision
 		for (i = 0; i < inViewPlatforms.length; ++i) {
 			// check just y collision
-			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height)) {				
+			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {				
 				this.speedY *= -0.9;
 				if (this.bounces) {
 					//this.numBounce++;
@@ -938,14 +952,14 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// bounce up slopes (later)
 			for (j = 1; j < slopeMax; ++j) {
 				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
-					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height)) {
+					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 					this.speedY *= -0.9;
 					break;
 				}
 			}
 			
 			// check just x collision
-			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height)) {
+			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 				this.speedX *= -0.9;
 				//this.numBounce++;
 				break;
@@ -1116,6 +1130,11 @@ function updatePlayerStates() {
 		}
 		break;
 	case playerState.Jumping:
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && jumpingFrames > 10) {
+			changeState(player, playerState.Flying);
+			jumpingFrames = 0;
+			break;
+		}
 		jumping();
 		break;
 	case playerState.Flying:
@@ -1147,10 +1166,10 @@ function updatePlayerStates() {
 		ouching();
 		break;
 	case playerState.Dying:
-		// idk you ded
+		dying();
 		break;
 	}
-	if (debug) document.getElementById("test2").innerHTML = player.state;
+	if (debug) document.getElementById("test2").innerHTML = player.state + "<br>JumpingFrames: " + jumpingFrames;
 }
 
 function hitGround() {
@@ -1162,6 +1181,13 @@ function hitGround() {
 	return false;
 }
 
+function dying() {
+	dyingFrames++;
+	if (dyingFrames > 100) {
+		player.kill = true;
+	}
+}
+
 function idling() {
 	player.accelY = worldGravity;
 	player.wingBeats = 0;
@@ -1171,10 +1197,10 @@ function idling() {
 function running() {
 	player.accelY = 2;
 	player.wingBeats = 0;
-	if (player.notCollidingY > 400) {
+	if (player.notCollidingY > 20) {
 		changeState(player, playerState.Falling);
 		player.accelY = 0;
-		player.notCollidingY = 400;
+		player.notCollidingY = 20;
 	}
 }
 
@@ -1182,9 +1208,7 @@ function falling() {
 	if (player.accelY < 0) {
 		player.accelY = 0;
 	}
-
-	player.accelY += 0.2;
-
+	player.accelY += 1;
 	
 	if (player.speedY == 0) {
 		if (hitGround()) {
@@ -1195,22 +1219,20 @@ function falling() {
 
 function ouching() {
 	ouchingFrames++;
-	player.speedX = 0;
-	player.accel = 0;
+	var owX = 3;
 	
-	if (ouchingFrames == 1) {
-		player.speedY = -3;
-		player.accelY = worldGravity;
+	if (ouchingFrames < 2) {
+		player.accelY = -2.5;
 		player.invincible = player.invincibleFrames;
 	}
-	if (ouchingFrames >= 100) {
+	if (ouchingFrames > 8) {
 		ouchingFrames = 0;
 		changeState(player, playerState.Landing);
 	}
 	if (player.faceRight) {
-		player.speedX--;
+		player.accel -= owX;
 	} else {
-		player.speedX++;
+		player.accel += owX;
 	}
 }
 
@@ -1285,7 +1307,7 @@ function inCameraView() {
 	
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
-		if (collide(player.x, player.y, allPlatforms[i], gameArea.canvas.clientWidth, gameArea.canvas.clientWidth)) {
+		if (collide(player.x, player.y, allPlatforms[i], radiusSqr, radiusSqr)) {
 			inViewPlatforms.push(allPlatforms[i]);
 		}
 	}
