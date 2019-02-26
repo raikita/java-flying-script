@@ -88,7 +88,7 @@ var camera = {
 				camera.y1 = levelLimitsy - gameArea.canvas.clientHeight;
 			}
 			camera.x2 = camera.x1 + gameArea.canvas.clientWidth;
-			camera.y2 = camera.y2 + gameArea.canvas.clientHeight;
+			camera.y2 = camera.y1 + gameArea.canvas.clientHeight;
 		}
 };
 
@@ -120,14 +120,12 @@ var gameArea = {
 	        });
 	    },
 	    mainMenu : function() {
-	    	this.mainMenuInterval = setInterval(mainMenu, 0.02);
+	    	this.mainMenuLoop = requestAnimationFrame(mainMenu);
 	    	this.selection = 0;
 	    },
 	    start : function() {
 	        this.context = this.canvas.getContext("2d");
 	        animatefps(60);
-	        //this.interval = setInterval(updateGameArea, 0.016);	// play at 30fps OuO;;;;
-	        //requestAnimationFrame(updateGameArea);
 	    }
 };
 
@@ -150,52 +148,29 @@ function openGame() {
 
 function mainMenu() {
 	var canvas = document.getElementById("canvas"),
-		ctx = canvas.getContext("2d"),
-		x1 = 225, y1 = 248, x2 = 10, y2 = 10,
-		selectors = ["Start Game"], MAX = 0;
-	
-	ctx.drawImage(uiImgs[0], 0, 0, canvas.clientWidth, canvas.clientHeight);
-	
+		ctx = canvas.getContext("2d");
+		
+	ctx.drawImage(uiImgs[0], camera.x1, camera.y1, canvas.width, canvas.height);
+
 	ctx.font = "30px Arial";
 	ctx.fillStyle = "#fff49f";
-	ctx.fillText("Press Enter ", 250, 262);
-	//ctx.fillText("to Begin", 250, 312);
-
-	// allow looping of selecting
-	if (gameArea.keys && gameArea.keys[key.up]) {
-		gameArea.keys = false;
-		++gameArea.selection;
-		if (gameArea.selection > MAX) {
-			gameArea.selection = 0;
-		}
-	}
-	if (gameArea.keys && gameArea.keys[key.down]) {
-		gameArea.keys = false;
-		--gameArea.selection;
-		if (gameArea.selection < 0) {
-			gameArea.selection = MAX;
-		}
-	}
-	/*
-	if (gameArea.selection == 0) {
-		ctx.fillRect(x1, y1, x2, y2);
-	}
-	if (gameArea.selection == 1) {
-		ctx.fillRect(x1, y1+50, x2, y2);
-	}
-	*/
+	ctx.fillText("Press Enter", camera.x1+250, camera.y1+262);
+	
 	// begin game
-	if (gameArea.selection == 0 && gameArea.keys && (gameArea.keys[key.a] || gameArea.keys[key.enter])) {
+	if (gameArea.keys && gameArea.keys[key.enter]) {
 		gameArea.keys = false;
 		loadGame();
 	}
-	if (gameArea.selection == 0 && gameArea.keys && gameArea.keys[key.a]) {
-		// no control thingies yet wahahahaaha....
+	else {
+		requestAnimationFrame(mainMenu);
 	}
+	
 }
 
 function loadGame() {
-	clearInterval(gameArea.mainMenuInterval);
+	//clearInterval(gameArea.mainMenuInterval);
+	window.cancelAnimationFrame(gameArea.mainMenuLoop);
+	gameArea.mainMenuLoop = undefined;
 	loadingScreen();
 
 	var loading = [];
@@ -355,39 +330,135 @@ function spawnEnemy(type, x, y) {
 // *********************************************************************************** //
 
 var frameCount = 0;
-var $results = $("#results");
 var fpsInterval, startTime, now, then, elapsed;
+
+var gameLoop = undefined;
+var pauseLoop = undefined;
+
+function pause() {
+	if (gameArea.selection == 0 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		
+		keydown = false;
+		window.cancelAnimationFrame(pauseLoop);
+		pauseLoop = undefined;
+		gameLoop = requestAnimationFrame(updateGameArea);
+	}
+	else if (gameArea.selection == 1 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		window.cancelAnimationFrame(pauseLoop);
+		pauseLoop = undefined;
+		quitGame();		
+	}
+	else {
+		renderPause();	
+		requestAnimationFrame(pause);
+	}
+}
+
+function quitGame() {
+	// reset everything
+	var canvas = document.getElementById("canvas");
+	keydown = false;
+	gameArea.keys = false;
+	player = null;
+	allPlatforms = [], inViewPlatforms = [], 
+	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
+	allCloudPlatforms = [], inViewCloudPlatforms = [],
+	flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0,
+	gameArea.selection = 0;
+	
+	gameArea.mainMenuLoop = requestAnimationFrame(mainMenu);
+}
+
+function renderPause() {
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d"),
+	x1 = camera.x1+225, y1 = camera.y1+248, x2 = 10, y2 = 10,
+	selectors = ["Continue", "Quit"], MAX = 1;
+	
+	ctx.fillStyle = "black";
+	ctx.fillRect(camera.x1+188, camera.y1 +100, 225, 300);
+	
+	ctx.fillStyle = "#fff49f";
+	ctx.font = "bold 50px Arial";
+	ctx.fillText("PAUSED", camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
+	
+	ctx.font = "30px Arial";
+	
+	ctx.fillText(selectors[0], camera.x1+250, camera.y1+262);
+	ctx.fillText(selectors[1], camera.x1+250, camera.y1+312);
+	
+	// allow looping of selecting
+	if (gameArea.keys && gameArea.keys[key.up]) {
+		gameArea.keys = false;
+		++gameArea.selection;
+		if (gameArea.selection > MAX) {
+			gameArea.selection = 0;
+		}
+	}
+	if (gameArea.keys && gameArea.keys[key.down]) {
+		gameArea.keys = false;
+		--gameArea.selection;
+		if (gameArea.selection < 0) {
+			gameArea.selection = MAX;
+		}
+	}
+
+	if (gameArea.selection == 0) {
+		ctx.fillRect(x1, y1, x2, y2);
+	}
+	if (gameArea.selection == 1) {
+		ctx.fillRect(x1, y1+50, x2, y2);
+	}
+}
+
+var endType = "";
+var endLoop = undefined;
+
+function endScreen() {
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d");
+	var endWords = "";
+	
+	if (endType === "win") {
+		endWords = "YOU WIN!";
+	}
+	else {
+		endWords = "YOU'RE DEAD!";
+	}
+	
+	ctx.fillStyle = "black";
+	ctx.fillRect(camera.x1, camera.y1, canvas.width, canvas.height);
+	
+	ctx.fillStyle = "#fff49f";
+	ctx.font = "bold 50px Arial";
+	ctx.fillText(endWords, camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
+		
+	ctx.font = "30px Arial";
+	ctx.fillStyle = "#fff49f";
+	ctx.fillText("Quit", camera.x1+250, camera.y1+262);
+	
+	// restart
+	if (gameArea.keys && gameArea.keys[key.enter]) {
+		gameArea.keys = false;
+		window.cancelAnimationFrame(endLoop);
+		endLoop = undefined;
+		quitGame();
+	}
+	else {
+		requestAnimationFrame(endScreen);
+	}
+}
 
 function animatefps(fps) {
 	fpsInterval = 1000/fps;
 	then = Date.now();
 	startTime = then;
-	requestAnimationFrame(updateGameArea);
+	gameLoop = requestAnimationFrame(updateGameArea);
 }
 
 function updateGameArea() {
 	now = Date.now();
 	elapsed = now - then;
-	
-	// first check if dead
-	if (player.kill) {
-		var ctx = gameArea.context;
-		// temporary death screen
-		ctx.fillStyle = "Black";
-		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
-		
-		//clearInterval(gameArea.interval);
-		return;
-	}
-	
-	if (win()) {
-		var ctx = gameArea.context;
-		ctx.fillStyle = "Green";
-		ctx.fillRect(camera.x1, camera.y1, camera.x2, camera.y2);
-		
-		//clearInterval(gameArea.interval);
-		return;		
-	}
 	
 	// update camera's position
 	camera.update();
@@ -439,7 +510,28 @@ function updateGameArea() {
 	*100)/100;
 	
 	if (debug) document.getElementById("test10").innerHTML = currentFps;
-	requestAnimationFrame(updateGameArea);
+	
+	if (gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		keydown = false;
+		window.cancelAnimationFrame(gameLoop);
+		gameLoop = undefined;
+		pauseLoop = requestAnimationFrame(pause);
+	}
+	else if (win()) {
+		window.cancelAnimationFrame(gameLoop);
+		gameLoop = undefined;
+		endType = "win";
+		endLoop = requestAnimationFrame(endScreen);		
+	}
+	else if (player.kill) {
+		window.cancelAnimationFrame(gameLoop);
+		gameLoop = undefined;
+		endType = "lose";
+		endLoop = requestAnimationFrame(endScreen);		
+	}
+	else {
+		requestAnimationFrame(updateGameArea);
+	}
 }
 
 function renderGameArea() {
