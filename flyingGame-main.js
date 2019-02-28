@@ -1,8 +1,8 @@
 /*
- *  TODO: 2 more types of enemies: moving and shooting if seen, moving only
+ *  TODO: Projectile explode when hit enemy, fade when dying
  *  TODO: Animations
- *  TODO: Start screen
- *  TODO: Sliding state: when x is moving but key not pressed
+ *  TODO: Projectile Collision
+ *  TODO: Point system
  *  
  */
 
@@ -500,16 +500,7 @@ function updateGameArea() {
 	if (elapsed > fpsInterval) {
 		then = now - (elapsed % fpsInterval);
 		renderGameArea();
-
-		//document.getElementById("test10").innerHTML = "elapsed: "+elapsed + "<br>fps?: " + (1 / elapsed) * 1000 +"<br>fpsInterval: "+ fpsInterval;
-		// render stuff
 	}
-
-	var sinceStart = now - startTime;
-	var currentFps = Math.round(1000 / (sinceStart/++frameCount)
-	*100)/100;
-	
-	if (debug) document.getElementById("test10").innerHTML = currentFps;
 	
 	if (gameArea.keys && gameArea.keys[key.enter] && keydown) {
 		keydown = false;
@@ -537,7 +528,6 @@ function updateGameArea() {
 function renderGameArea() {
 	var ctx = gameArea.context;
 
-	//document.getElementById("test10").innerHTML = "elapsed: "+elapsed + "<br>fps?: " + (1 / elapsed) * 1000 +"<br>fpsInterval: "+ fpsInterval;
 	// render stuff
 	ctx.setTransform(1,0,0,1,0,0);
 	ctx.clearRect(0,0, gameArea.canvas.clientWidth, gameArea.canvas.clientHeight);
@@ -697,6 +687,7 @@ function playerSprite(width, height, img, x, y) {
 		
 		this.x += this.speedX;
 		
+		if (debug) document.getElementById("test11").innerHTML = "wingbeats: " + this.wingBeats;
 		if (debug) document.getElementById("test7").innerHTML = "speed: " + player.speedX + ",<br> accel:  " + player.accel;
 		if (debug) document.getElementById("test5").innerHTML = "speedY: " + this.speedY + ",<br> accelY: " + this.accelY;
 	}
@@ -742,9 +733,7 @@ function playerSprite(width, height, img, x, y) {
 	}
 	
 	this.detectCollision = function() {
-		var slopeMax = 20,
-		slopeFall = 0.1; // slopeFall: The lower the number, the more steep cliff has to be to slide
-
+		var slopeMax = 12;
 
 		if (debug) document.getElementById("test4").innerHTML = "..";
 		if (debug) document.getElementById("test3").innerHTML = "..";
@@ -813,15 +802,13 @@ function playerSprite(width, height, img, x, y) {
 			if (inViewPlatforms[i].type == "ground") {
 				// slope up
 				for (var n = 0; n <= slopeMax; ++n) {
+					if (debug) document.getElementById("test12").innerHTML = "n: " + n;
 					if (collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						continue;
 					}
-					if (!collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
+					else if (!collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						this.y -= n;
-						var decreaseAccel = 0;
 						if (prevThisY-this.y > 10) {
-							//var decreaseAccel = this.accel;
-							decreaseAccel = (prevThisY-this.y)/10;
 							if (this.accel < -5) {
 								this.accel = -5;
 							}
@@ -829,10 +816,7 @@ function playerSprite(width, height, img, x, y) {
 								this.accel = 5;
 							}
 						}
-						if (debug) document.getElementById("test3").innerHTML = "slope Up " +(prevThisY-this.y) +"<br>" + decreaseAccel;
-
 						
-
 						break;
 					}
 				}
@@ -845,7 +829,6 @@ function playerSprite(width, height, img, x, y) {
 					this.accel = 0;
 					if (this.state == playerState.Gliding) {
 						changeState(this, playerState.Falling);
-						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test3").innerHTML = "x Ground Collision";
 					
@@ -854,10 +837,8 @@ function playerSprite(width, height, img, x, y) {
 					this.speedX *= 0.75;
 					if (this.state == playerState.Gliding) {
 						changeState(this, playerState.Falling);
-						//this.state = playerState.Falling;
 					}
 					if (debug) document.getElementById("test3").innerHTML = "x Cloud Collision";
-					
 				}
 				break;
 			}		
@@ -1285,6 +1266,10 @@ function hitGround() {
 
 function dying() {
 	dyingFrames++;
+	if (dyingFrames <= 100) {
+		player.speedX = 0;
+		player.speedY = 0;
+	}
 	if (dyingFrames > 100) {
 		player.kill = true;
 	}
@@ -1310,7 +1295,7 @@ function falling() {
 	if (player.accelY < 0) {
 		player.accelY = 0;
 	}
-	player.accelY += 1;
+	player.accelY += 0.6;
 	
 	if (player.speedY == 0) {
 		if (hitGround()) {
@@ -1324,7 +1309,7 @@ function ouching() {
 	var owX = 3;
 	
 	if (ouchingFrames < 2) {
-		player.accelY = -2.5;
+		player.speedY = -0.5;
 		player.invincible = player.invincibleFrames;
 	}
 	if (ouchingFrames > 8) {
@@ -1351,8 +1336,8 @@ function gliding() {
 	if (player.accelY < 0) {
 		player.accelY = 0;
 	}
-	if (player.accelY < worldGravity) {
-		player.accelY += 0.03;
+	if (player.accelY < 1) {
+		player.accelY += 0.05;
 	}	
 }
 
@@ -1379,21 +1364,21 @@ function jumping() {
 }
 
 function flying() {
-	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
+	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats < player.maxWingBeats) {
 		flyingFrames = 0;
 		++player.wingBeats;
 	}
 	
 	flyKeydown = false;
 	flyingFrames++;
-	if (flyingFrames > 15) {
+	if (flyingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && flyingFrames > 10)) {
 		changeState(player, playerState.Gliding);
 		flyingFrames = 0;
 	}
 	else {
-		player.accelY -= 2;
-		if (player.accelY < -6) {
-			player.accelY = -6;
+		player.accelY -= 1;
+		if (player.accelY < -4) {
+			player.accelY = -4;
 		}
 	}
 }

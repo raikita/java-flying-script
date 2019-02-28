@@ -12,10 +12,8 @@ def parse(vector):
     splitString = string.split(" ")
     sx = splitString[1]
     sy = splitString[2]
-    sz = splitString[3]
     x = int(float(sx)*81.92)    # multiply by level's width/100!
     y = int(float(sy)*81.92)    # multiply by level's width/100!
-    z = int(float(sz)*90)
     
     coords = [x, y]
     
