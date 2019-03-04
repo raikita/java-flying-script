@@ -24,8 +24,8 @@ var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = 
 var playerImgIndex = {
 		IDLE : 0,
 		WALK : 1,
-		FLYBODY: 2,
-		GLIDEBODY: 3,
+		FLY: 2,
+		GLIDE: 3,
 	};
 
 var enemyImgIndex = {
@@ -185,10 +185,8 @@ function loadGame() {
 	// PLAYER SPRITES
 	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
-	loading.push(loadImages(playerImgs, "imgs/player/flyBody.png"));
-	// flytail
-	loading.push(loadImages(playerImgs, "imgs/player/glideBody.png"));
-	// glidetail
+	loading.push(loadImages(playerImgs, "imgs/player/fly.png"));
+	loading.push(loadImages(playerImgs, "imgs/player/glide.png"));
 	
 	// ENEMY SPRITES
 	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
@@ -720,11 +718,11 @@ function playerSprite(width, height, img, x, y) {
 			this.maxFrames = 27;
 			break;
 		case playerState.Flying:
-			this.image.src = playerImgs[playerImgIndex.FLYBODY].src;
+			this.image.src = playerImgs[playerImgIndex.FLY].src;
 			this.maxFrames = 8;
 			break;
 		case playerState.Gliding:
-			this.image.src = playerImgs[playerImgIndex.GLIDEBODY].src;
+			this.image.src = playerImgs[playerImgIndex.GLIDE].src;
 			this.maxFrames = 1;
 			break;
 		case playerState.Falling:
@@ -737,7 +735,7 @@ function playerSprite(width, height, img, x, y) {
 			break;
 		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
-			if (player.state == playerState.Flying || player.state == playerState.Gliding) {
+			if (player.state == playerState.Flying) {
 				drawSprite(this, this.image, 100, 200, this.width, 165, this.maxFrames);
 			}
 			else {
