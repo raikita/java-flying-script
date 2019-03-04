@@ -23,7 +23,9 @@ var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = 
 
 var playerImgIndex = {
 		IDLE : 0,
-		WALK : 1
+		WALK : 1,
+		FLYBODY: 2,
+		GLIDEBODY: 3,
 	};
 
 var enemyImgIndex = {
@@ -183,6 +185,10 @@ function loadGame() {
 	// PLAYER SPRITES
 	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
 	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
+	loading.push(loadImages(playerImgs, "imgs/player/flyBody.png"));
+	// flytail
+	loading.push(loadImages(playerImgs, "imgs/player/glideBody.png"));
+	// glidetail
 	
 	// ENEMY SPRITES
 	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
@@ -713,9 +719,30 @@ function playerSprite(width, height, img, x, y) {
 			this.image.src = playerImgs[playerImgIndex.WALK].src;
 			this.maxFrames = 27;
 			break;
+		case playerState.Flying:
+			this.image.src = playerImgs[playerImgIndex.FLYBODY].src;
+			this.maxFrames = 8;
+			break;
+		case playerState.Gliding:
+			this.image.src = playerImgs[playerImgIndex.GLIDEBODY].src;
+			this.maxFrames = 1;
+			break;
+		case playerState.Falling:
+			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.maxFrames = 35;
+			break;
+		case playerState.Jumping:
+			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.maxFrames = 35;
+			break;
 		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
-			drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
+			if (player.state == playerState.Flying || player.state == playerState.Gliding) {
+				drawSprite(this, this.image, 100, 200, this.width, 165, this.maxFrames);
+			}
+			else {
+				drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
+			}			
 		}
 	}
 	
@@ -953,12 +980,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 				break;
 			}
 		}
-	}
-
-	// detect player?
-	
-	// shoot stuff?
-	
+	}	
 }
 
 function projectile(width, height, colour, x, y, owner, bounces, direction, startingSpeed) {
@@ -1068,21 +1090,17 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 		dw = width+colAdj, 					// frame width (destination)
 		dh = height+colAdj;					// frame height (destination)
 	
-	//sprite.tickCount += (elapsed);
-	
 	var sinceStart = now - startTime;
 	var currentFps = Math.round(1000 / (sinceStart/frameCount));
 	
 	if (debug) document.getElementById("test9").innerHTML = currentFps;
-	
-	
-	//++sprite.tickCount;
+
 	if (sprite.tickCount > 1) {
 		sprite.tickCount = 0;
 		++sprite.frameIndex;
 	}
 	
-	if (sprite.frameIndex > numFrames) {
+	if (sprite.frameIndex >= numFrames) {
 		sprite.frameIndex = 1;
 	}
 
@@ -1285,7 +1303,8 @@ function running() {
 	player.accelY = 2;
 	player.wingBeats = 0;
 	if (player.notCollidingY > 20) {
-		changeState(player, playerState.Falling);
+		//changeState(player, playerState.Falling);
+		player.state = playerState.Falling;
 		player.accelY = 0;
 		player.notCollidingY = 20;
 	}
@@ -1299,7 +1318,8 @@ function falling() {
 	
 	if (player.speedY == 0) {
 		if (hitGround()) {
-			changeState(player, playerState.Landing);
+			//changeState(player, playerState.Landing);
+			player.state = playerState.Landing;
 		}
 	}
 }
@@ -1326,9 +1346,16 @@ function ouching() {
 function landing() {
 	player.wingBeats = 0;
 	landingFrames++;
-	if (landingFrames > 15) {
+	if (landingFrames > 1) {
 		landingFrames = 0;
-		changeState(player, playerState.Idling);
+		//changeState(player, playerState.Idling);
+		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
+			player.state = playerState.Idling;
+		}
+		else {
+			player.state = playerState.Running;
+		}
+		
 	}
 }
 
@@ -1391,7 +1418,7 @@ function changeState(sprite, newState) {
 function inCameraView() {		
 	// radius larger for enemies and objects
 	var radiusSqr = (gameArea.canvas.clientWidth * gameArea.canvas.clientWidth);
-	
+	radiusSqr = 500;
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
 		if (collide(player.x, player.y, allPlatforms[i], radiusSqr, radiusSqr)) {
@@ -1399,6 +1426,7 @@ function inCameraView() {
 		}
 	}
 
+	radiusSqr = 450000;
 	inViewEnemies = [];
 	for (var i = allEnemies.length - 1; i >= 0; --i) {
 		cx1 = player.x - allEnemies[i].x;
