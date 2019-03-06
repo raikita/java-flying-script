@@ -13,13 +13,14 @@ var player;
 var allPlatforms = [], inViewPlatforms = [], 
 	allProjectiles = [], 
 	allEnemies = [], inViewEnemies = [],dyingEnemies = [],
-	allCloudPlatforms = [], inViewCloudPlatforms = [];
+	allCloudPlatforms = [], inViewCloudPlatforms = [],
+	allGold = [], inViewGold = [];
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 var keydown = false, flyKeydown = false, shootKeydown = false;
 var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0;
 var worldGravity = 5;
 var winSpot = {x:0, y:0, w:0, h:0};
-var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [];
+var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [], itemImgs = [];
 
 var playerImgIndex = {
 		IDLE : 0,
@@ -33,8 +34,12 @@ var enemyImgIndex = {
 	};
 
 var projectileImgIndex = {
-		FIRE : 0,
+		FIRE : 0
 	};
+
+var itemImgIndex = {
+		GOLD : 0
+}
 
 var bgImgIndex = {
 		LAYERMID : 0,
@@ -194,9 +199,14 @@ function loadGame() {
 	// PROJECTILE SPRITES
 	loading.push(loadImages(projectileImgs, "imgs/projectiles/fire.png"));
 	
+	// ITEM SPRITES
+	loading.push(loadImages(itemImgs, "imgs/items/goldbar.png"));
+	
 	// HUD
 	loading.push(loadImages(uiImgs, "imgs/hud.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud-flyRed.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud-flyGreen.png"));
 	
 	$.when.apply(null, loading).done(function() {
 		startGame();
@@ -276,7 +286,7 @@ function startGame() {
 function gameLevel1() {
     var background = new Image();
     levelLimitsx = 8192, levelLimitsy = 2048;
-    playerStartx = 190, playerStarty = 331;
+    playerStartx = 190, playerStarty = 362;
     
     files = ['level1-ground.txt',
     		 'level1-clouds.txt'];
@@ -309,7 +319,28 @@ function gameLevel1() {
     spawnEnemy(1, 7110, 850);
     spawnEnemy(1, 1980, 1590);
     spawnEnemy(1, 2090, 1590);
-    spawnEnemy(1, 4590, 1860);    
+    spawnEnemy(1, 4590, 1860);   
+    
+    spawnGold(1625, 230);
+    spawnGold(1900, 55);
+    spawnGold(1625, 165);
+    spawnGold(1540, 230);
+    spawnGold(1540, 165);
+    spawnGold(1305, 450);
+    spawnGold(1235, 450);
+    spawnGold(1165, 450);
+    spawnGold(1670, 455);
+    spawnGold(2730, 150);
+    spawnGold(2830, 150);
+    spawnGold(2930, 150);
+    spawnGold(710, 1670);
+    spawnGold(780, 1660);
+    spawnGold(850, 1650);
+    spawnGold(930, 1640);
+    spawnGold(1585, 1210);
+    spawnGold(1585, 1280);
+    spawnGold(1585, 1350);
+    spawnGold(1585, 1420);
     
     winSpot.x = 7530;
     winSpot.y = 1260;
@@ -323,6 +354,11 @@ function spawnEnemy(type, x, y) {
 		var e = new enemy("", 70, 70, "Orange", x, y, 5, type);
 		allEnemies.push(e);
 	}
+}
+
+function spawnGold(x, y) {
+	var g = new gold(25, 25, "Gold", x, y)
+	allGold.push(g);
 }
 
 // *********************************************************************************** //
@@ -472,7 +508,7 @@ function updateGameArea() {
 	controls();
 	player.updatePos();
 	if (debug) document.getElementById("test10").innerHTML = "inViewEnemies: " + inViewEnemies.length;
-	
+		
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].updatePos();
 		if (allProjectiles[i].shouldDie) {
@@ -501,6 +537,21 @@ function updateGameArea() {
 			delete dyingEnemies.splice(i, 1);
 		}
 	}
+	
+	for (var i = 0; i < inViewGold.length; ++i) {
+		inViewGold[i].updatePos();
+		if (inViewGold[i].shouldDie) {
+			for (var j = 0; j < allGold.length; ++j) {
+				if (inViewGold[i] === allGold[j]) {
+					delete allGold.splice(j, 1);
+					delete inViewGold.splice(i, 1);
+					break;
+				}
+			}
+		}
+	}
+	
+	
 	if (elapsed > fpsInterval) {
 		then = now - (elapsed % fpsInterval);
 		renderGameArea();
@@ -551,6 +602,10 @@ function renderGameArea() {
 	
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].draw();
+	}
+	
+	for (var i = 0; i < inViewGold.length; ++i) {
+		inViewGold[i].draw();
 	}
 	
 	player.draw();
@@ -604,7 +659,19 @@ function displayHUD() {
 	var ctx = gameArea.context;
 	
 	ctx.drawImage(uiImgs[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's blood
+	
+	ctx.drawImage(uiImgs[3], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly red
+	ctx.save();
+	ctx.globalAlpha = (player.maxWingBeats - player.wingBeats)/5;
+	ctx.drawImage(uiImgs[4], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly green
+	ctx.restore();
 	ctx.drawImage(uiImgs[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
+	
+	ctx.font = "Bold 20px Arial";
+	ctx.fillStyle = "#f7e683";
+	ctx.strokeStyle = "#000000";
+	ctx.fillText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
+	ctx.strokeText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
 }
 
 function win() {
@@ -656,6 +723,8 @@ function playerSprite(width, height, img, x, y) {
 	this.invincibleFrames = 90;
 	this.kill = false;
 	
+	this.collectedGold = 0;
+	
 	this.notCollidingY = 0;
 	
 	this.shootProjectile = function() {
@@ -674,7 +743,6 @@ function playerSprite(width, height, img, x, y) {
 	}
 	
 	this.updatePos = function() {
-		++this.tickCount;
 		if ((this.speedY + this.accelY <= this.maxGravitySpeed &&
 			this.speedY + this.accelY >= this.maxFlySpeed) || this.state == playerState.Ouching) {
 			this.speedY += this.accelY;			
@@ -698,7 +766,7 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 1;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 35;
 	this.stateChange = false;
 	
@@ -733,10 +801,14 @@ function playerSprite(width, height, img, x, y) {
 			this.image.src = playerImgs[playerImgIndex.IDLE].src;
 			this.maxFrames = 35;
 			break;
+		case playerState.Ouching:
+			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.maxFrames = 35;
+			break;
 		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
 			if (player.state == playerState.Flying) {
-				drawSprite(this, this.image, 100, 200, this.width, 165, this.maxFrames);
+				drawSprite(this, this.image, 100, 200, this.width, 160, this.maxFrames);
 			}
 			else {
 				drawSprite(this, this.image, 100, 100, this.width, this.height, this.maxFrames);
@@ -893,7 +965,6 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.hitPoints = hitPoints;
 	
 	this.updatePos = function() {
-		++this.tickCount;
 		this.facePlayer();
 		enemyUpdateStates(this);
 		
@@ -905,7 +976,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 1;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 35;
 	this.stateChange = false;
 	
@@ -1006,11 +1077,10 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 6;		// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 1;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 6;
 	
 	this.updatePos = function() {
-		++this.tickCount;
 		this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
 			this.shouldDie = true;
@@ -1071,6 +1141,45 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 }
 
+function gold(width, height, colour, x, y) {
+	this.image = new Image();
+	this.image.src = "";
+	
+	this.width = width;
+	this.height = height;
+	this.faceRight = true;
+	this.x = x;
+	this.y = y;
+	
+	this.shouldDie = false;
+	
+	this.frameIndex = 0;		// current frame to be displayed
+	this.tickCount = 0;			// number of updates since current frame was first displayed
+	this.ticksPerFrame = 3;		// number of updates until next frame should be displayed, FPS
+	this.maxFrames = 11;
+	
+	this.updatePos = function() {
+		if (this.shouldDie) {
+			return;
+		}
+		this.detectCollision();
+	}
+	
+	this.draw = function () {
+		this.image.src = itemImgs[itemImgIndex.GOLD].src;
+
+		drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
+	}
+	
+	this.detectCollision = function() {
+		// check if collected
+		if (collideObject(this.x, this.y, player, this.width, this.height)) {
+			this.shouldDie = true;
+			++player.collectedGold;
+		}
+	}
+}
+
 function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFrames) {
 	// thanks http://www.williammalone.com/articles/create-html5-canvas-javascript-sprite-animation/ for moving sprites
 	
@@ -1092,8 +1201,8 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 	var currentFps = Math.round(1000 / (sinceStart/frameCount));
 	
 	if (debug) document.getElementById("test9").innerHTML = currentFps;
-
-	if (sprite.tickCount > 1) {
+	++sprite.tickCount;
+	if (sprite.tickCount > sprite.ticksPerFrame) {
 		sprite.tickCount = 0;
 		++sprite.frameIndex;
 	}
@@ -1435,6 +1544,19 @@ function inCameraView() {
 		// check if triangle vertex in circle
 		if (c1Sqr <= 0) {
 			inViewEnemies.push(allEnemies[i]);
+		}
+	}
+	
+	inViewGold = [];
+	for (var i = allGold.length - 1; i >= 0; --i) {
+		cx1 = player.x - allGold[i].x;
+		cy1 = player.y - allGold[i].y;
+		
+		c1Sqr = cx1*cx1 + cy1*cy1 - radiusSqr;
+		
+		// check if triangle vertex in circle
+		if (c1Sqr <= 0) {
+			inViewGold.push(allGold[i]);
 		}
 	}
 }
