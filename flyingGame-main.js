@@ -297,13 +297,14 @@ function startGame() {
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
     gameArea.start();
-    gameArea.timer = 75; // plus 1 second since it starts to count down immediately
 }
 
 function gameLevel1() {
     var background = new Image();
     levelLimitsx = 8192, levelLimitsy = 2048;
     playerStartx = 190, playerStarty = 340;
+    
+    gameArea.timer = 90;
     
     files = ['level1-ground.txt',
     		 'level1-clouds.txt'];
@@ -1133,6 +1134,8 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.maxFrames = 6;
 	
 	this.updatePos = function() {
+		this.detectOutOfBounds();
+		
 		this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
 			this.shouldDie = true;
@@ -1150,7 +1153,13 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 		this.y += this.speedY;
 	}
 	
-	this.draw = function () {
+	this.detectOutOfBounds = function() {
+		if (this.x < camera.x1 || this.x > camera.x2 || this.y < camera.y1 || this.y > camera.y2) {
+			this.shouldDie = true;
+		}
+	}
+	
+	this.draw = function() {
 		this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
 		this.maxFrames = 5;
 
@@ -1574,7 +1583,7 @@ function changeState(sprite, newState) {
 function inCameraView() {		
 	// radius larger for enemies and objects
 	var radiusSqr = (gameArea.canvas.clientWidth * gameArea.canvas.clientWidth);
-	radiusSqr = 500;
+	radiusSqr = 5000;
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
 		if (collide(player.x, player.y, allPlatforms[i], radiusSqr, radiusSqr)) {
