@@ -101,6 +101,19 @@ var camera = {
 
 var gameArea = {
 		canvas : document.getElementById('canvas'),
+		timer : 0, 
+		totalGold : 0,
+		frameCount : 0,
+		fpsInterval : 0,
+		startTime : 0,
+		now : 0,
+		then : 0,
+		elapsed : 0,
+		before : 0,
+		gameLoop : undefined,
+		pauseLoop : undefined,
+		endLoop : undefined,
+		endType : "",
 	    keys : function() {
 	    	 // keyboard controls
 	        window.addEventListener('keydown', function (e) {
@@ -175,7 +188,6 @@ function mainMenu() {
 }
 
 function loadGame() {
-	//clearInterval(gameArea.mainMenuInterval);
 	window.cancelAnimationFrame(gameArea.mainMenuLoop);
 	gameArea.mainMenuLoop = undefined;
 	loadingScreen();
@@ -233,11 +245,11 @@ function loadingScreen() {
 	lin.addColorStop(1, "#0b2834");
 	
 	ctx.fillStyle = lin;
-	ctx.fillRect(0, 0, 700, 526);
+	ctx.fillRect(camera.x1, camera.y1, canvas.width, canvas.height);
 	
 	ctx.fillStyle = "black";
 	ctx.font = "bold 50px Arial";
-	ctx.fillText("LOADING....", (canvas.width / 2) - 150, (canvas.height / 2) + 25);
+	ctx.fillText("LOADING....", camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2));
 	
 }
 
@@ -252,6 +264,10 @@ function loadFile() {
 		requests[j].onload = function() {
 			lines = requests[j].responseText.split("\n");
 			for (var i = 0; i < lines.length; i += 3) {
+				if (typeof lines[i] == "undefined" || typeof lines[i+1] == "undefined" 
+					|| typeof lines[i+1] == "undefined") {
+					continue;
+				}
 				l1 = lines[i].split(" ");
 				l2 = lines[i+1].split(" ");
 				l3 = lines[i+2].split(" ");
@@ -281,12 +297,13 @@ function startGame() {
     player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
     inCameraView();
     gameArea.start();
+    gameArea.timer = 75; // plus 1 second since it starts to count down immediately
 }
 
 function gameLevel1() {
     var background = new Image();
     levelLimitsx = 8192, levelLimitsy = 2048;
-    playerStartx = 190, playerStarty = 362;
+    playerStartx = 190, playerStarty = 340;
     
     files = ['level1-ground.txt',
     		 'level1-clouds.txt'];
@@ -359,6 +376,8 @@ function spawnEnemy(type, x, y) {
 function spawnGold(x, y) {
 	var g = new gold(25, 25, "Gold", x, y)
 	allGold.push(g);
+	
+	++gameArea.totalGold;
 }
 
 // *********************************************************************************** //
@@ -369,136 +388,35 @@ function spawnGold(x, y) {
 // ******************************** START UPDATE GAME ******************************** //
 // *********************************************************************************** //
 
-var frameCount = 0;
-var fpsInterval, startTime, now, then, elapsed;
-
-var gameLoop = undefined;
-var pauseLoop = undefined;
-
-function pause() {
-	if (gameArea.selection == 0 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
-		
-		keydown = false;
-		window.cancelAnimationFrame(pauseLoop);
-		pauseLoop = undefined;
-		gameLoop = requestAnimationFrame(updateGameArea);
-	}
-	else if (gameArea.selection == 1 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
-		window.cancelAnimationFrame(pauseLoop);
-		pauseLoop = undefined;
-		quitGame();		
-	}
-	else {
-		renderPause();	
-		requestAnimationFrame(pause);
-	}
-}
-
-function quitGame() {
-	// reset everything
-	var canvas = document.getElementById("canvas");
-	keydown = false;
-	gameArea.keys = false;
-	player = null;
-	allPlatforms = [], inViewPlatforms = [], 
-	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
-	allCloudPlatforms = [], inViewCloudPlatforms = [],
-	flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0,
-	gameArea.selection = 0;
-	
-	gameArea.mainMenuLoop = requestAnimationFrame(mainMenu);
-}
-
-function renderPause() {
-	var canvas = document.getElementById("canvas");
-	var ctx = canvas.getContext("2d"),
-	x1 = camera.x1+225, y1 = camera.y1+248, x2 = 10, y2 = 10,
-	selectors = ["Continue", "Quit"], MAX = 1;
-	
-	ctx.fillStyle = "black";
-	ctx.fillRect(camera.x1+188, camera.y1 +100, 225, 300);
-	
-	ctx.fillStyle = "#fff49f";
-	ctx.font = "bold 50px Arial";
-	ctx.fillText("PAUSED", camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
-	
-	ctx.font = "30px Arial";
-	
-	ctx.fillText(selectors[0], camera.x1+250, camera.y1+262);
-	ctx.fillText(selectors[1], camera.x1+250, camera.y1+312);
-	
-	// allow looping of selecting
-	if (gameArea.keys && gameArea.keys[key.up]) {
-		gameArea.keys = false;
-		++gameArea.selection;
-		if (gameArea.selection > MAX) {
-			gameArea.selection = 0;
-		}
-	}
-	if (gameArea.keys && gameArea.keys[key.down]) {
-		gameArea.keys = false;
-		--gameArea.selection;
-		if (gameArea.selection < 0) {
-			gameArea.selection = MAX;
-		}
-	}
-
-	if (gameArea.selection == 0) {
-		ctx.fillRect(x1, y1, x2, y2);
-	}
-	if (gameArea.selection == 1) {
-		ctx.fillRect(x1, y1+50, x2, y2);
-	}
-}
-
-var endType = "";
-var endLoop = undefined;
-
-function endScreen() {
-	var canvas = document.getElementById("canvas");
-	var ctx = canvas.getContext("2d");
-	var endWords = "";
-	
-	if (endType === "win") {
-		endWords = "YOU WIN!";
-	}
-	else {
-		endWords = "YOU'RE DEAD!";
-	}
-	
-	ctx.fillStyle = "black";
-	ctx.fillRect(camera.x1, camera.y1, canvas.width, canvas.height);
-	
-	ctx.fillStyle = "#fff49f";
-	ctx.font = "bold 50px Arial";
-	ctx.fillText(endWords, camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
-		
-	ctx.font = "30px Arial";
-	ctx.fillStyle = "#fff49f";
-	ctx.fillText("Quit", camera.x1+250, camera.y1+262);
-	
-	// restart
-	if (gameArea.keys && gameArea.keys[key.enter]) {
-		gameArea.keys = false;
-		window.cancelAnimationFrame(endLoop);
-		endLoop = undefined;
-		quitGame();
-	}
-	else {
-		requestAnimationFrame(endScreen);
-	}
-}
-
 function animatefps(fps) {
-	fpsInterval = 1000/fps;
-	then = Date.now();
-	startTime = then;
-	gameLoop = requestAnimationFrame(updateGameArea);
+	gameArea.fpsInterval = 1000/fps;
+	gameArea.then = Date.now();
+	gameArea.before = Date.now();
+	gameArea.startTime = gameArea.then;
+	gameArea.gameLoop = requestAnimationFrame(updateGameArea);
 }
 
 function updateGameArea() {
-	now = Date.now();
-	elapsed = now - then;
+	gameArea.now = Date.now();
+	gameArea.elapsed = gameArea.now - gameArea.then;
+	
+	if (debug) {
+		var sinceStart = gameArea.now - gameArea.startTime;
+		var currentFps = Math.round(1000 / (gameArea.sinceStart/gameArea.frameCount));
+		document.getElementById("test9").innerHTML = currentFps;
+	}
+	
+	if (gameArea.now >= gameArea.before+1000) {
+		if (gameArea.timer > 0) {
+			--gameArea.timer;
+		}
+		else {
+			player.kill = true; // you lose if time goes out
+			gameArea.endType = "timeout";
+		}
+		
+		gameArea.before = Date.now();
+	}
 	
 	// update camera's position
 	camera.update();
@@ -551,33 +469,79 @@ function updateGameArea() {
 		}
 	}
 	
-	
-	if (elapsed > fpsInterval) {
-		then = now - (elapsed % fpsInterval);
+	if (gameArea.elapsed > gameArea.fpsInterval) {
+		gameArea.then = gameArea.now - (gameArea.elapsed % gameArea.fpsInterval);
 		renderGameArea();
 	}
 	
-	if (gameArea.keys && gameArea.keys[key.enter] && keydown) {
-		keydown = false;
-		window.cancelAnimationFrame(gameLoop);
-		gameLoop = undefined;
-		pauseLoop = requestAnimationFrame(pause);
+	if (player.kill) {
+		window.cancelAnimationFrame(gameArea.gameLoop);
+		gameArea.gameLoop = undefined;
+		if (gameArea.endType != "timeout") {
+			gameArea.endType = "lose";
+		}
+		gameArea.endLoop = requestAnimationFrame(endScreen);		
 	}
 	else if (win()) {
-		window.cancelAnimationFrame(gameLoop);
-		gameLoop = undefined;
-		endType = "win";
-		endLoop = requestAnimationFrame(endScreen);		
+		window.cancelAnimationFrame(gameArea.gameLoop);
+		gameArea.gameLoop = undefined;
+		gameArea.endType = "win";
+		gameArea.endLoop = requestAnimationFrame(endScreen);		
 	}
-	else if (player.kill) {
-		window.cancelAnimationFrame(gameLoop);
-		gameLoop = undefined;
-		endType = "lose";
-		endLoop = requestAnimationFrame(endScreen);		
+	else if (gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		keydown = false;
+		window.cancelAnimationFrame(gameArea.gameLoop);
+		gameArea.gameLoop = undefined;
+		gameArea.pauseLoop = requestAnimationFrame(pause);
 	}
 	else {
 		requestAnimationFrame(updateGameArea);
 	}
+}
+
+function pause() {
+	if (gameArea.selection == 0 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		
+		keydown = false;
+		window.cancelAnimationFrame(gameArea.pauseLoop);
+		gameArea.pauseLoop = undefined;
+		gameArea.gameLoop = requestAnimationFrame(updateGameArea);
+	}
+	else if (gameArea.selection == 1 && gameArea.keys && gameArea.keys[key.enter] && keydown) {
+		window.cancelAnimationFrame(gameArea.pauseLoop);
+		gameArea.pauseLoop = undefined;
+		quitGame();		
+	}
+	else {
+		renderPause();	
+		requestAnimationFrame(pause);
+	}
+}
+
+function quitGame() {
+	// reset everything
+	var canvas = document.getElementById("canvas");
+	keydown = false;
+	gameArea.keys = false;
+	player = null;
+	allPlatforms = [], inViewPlatforms = [], 
+	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
+	allCloudPlatforms = [], inViewCloudPlatforms = [],
+	flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0,
+	gameArea.selection = 0;
+	
+	gameArea.mainMenuLoop = requestAnimationFrame(mainMenu);
+}
+
+function win() {
+	if (player.x >= winSpot.x && player.x <= winSpot.x + winSpot.w) {
+		if (player.y >= winSpot.y && player.y <= winSpot.y + winSpot.h) {
+			if (gameArea.keys && gameArea.keys[key.up]) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 function renderGameArea() {
@@ -612,6 +576,89 @@ function renderGameArea() {
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "layerFront");
 	drawLevel(player.x, player.y, camera.x2, camera.y2, "ground-front");
 	displayHUD();
+}
+
+function renderPause() {
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d"),
+	x1 = camera.x1+225, y1 = camera.y1+248, x2 = 10, y2 = 10,
+	selectors = ["Continue", "Quit"], MAX = 1;
+	
+	ctx.fillStyle = "black";
+	ctx.fillRect(camera.x1+188, camera.y1 +100, 225, 300);
+	
+	ctx.fillStyle = "#fff49f";
+	ctx.font = "bold 50px Arial";
+	ctx.fillText("PAUSED", camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
+	
+	ctx.font = "30px Arial";
+	
+	ctx.fillText(selectors[0], camera.x1+250, camera.y1+262);
+	ctx.fillText(selectors[1], camera.x1+250, camera.y1+312);
+	
+	// allow looping of selecting
+	if (gameArea.keys && gameArea.keys[key.up]) {
+		gameArea.keys = false;
+		++gameArea.selection;
+		if (gameArea.selection > MAX) {
+			gameArea.selection = 0;
+		}
+	}
+	if (gameArea.keys && gameArea.keys[key.down]) {
+		gameArea.keys = false;
+		--gameArea.selection;
+		if (gameArea.selection < 0) {
+			gameArea.selection = MAX;
+		}
+	}
+
+	if (gameArea.selection == 0) {
+		ctx.fillRect(x1, y1, x2, y2);
+	}
+	if (gameArea.selection == 1) {
+		ctx.fillRect(x1, y1+50, x2, y2);
+	}
+}
+
+function endScreen() {
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d");
+	var endWords = "";
+	
+	ctx.fillStyle = "black";
+	ctx.fillRect(camera.x1, camera.y1, canvas.width, canvas.height);
+	
+	ctx.fillStyle = "#fff49f";
+	ctx.font = "bold 50px Arial";
+	
+	if (gameArea.endType == "win") {
+		endWords = "YOU WIN!";
+	}
+	if (gameArea.endType == "lose"){
+		endWords = "YOU'RE DEAD!";
+	}
+	if (gameArea.endType == "timeout"){
+		endWords = "YOU'RE DEAD!"
+		ctx.fillText(endWords, camera.x1+(canvas.width / 2) - 205, camera.y1+(canvas.height / 2) - 50);
+		endWords = "TIMEOUT!";
+	}
+	
+	ctx.fillText(endWords, camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
+
+	ctx.font = "30px Arial";
+	ctx.fillStyle = "#fff49f";
+	ctx.fillText("Quit", camera.x1+300, camera.y1+300);
+	
+	// restart
+	if (gameArea.keys && gameArea.keys[key.enter]) {
+		gameArea.keys = false;
+		window.cancelAnimationFrame(gameArea.endLoop);
+		gameArea.endLoop = undefined;
+		quitGame();
+	}
+	else {
+		requestAnimationFrame(endScreen);
+	}
 }
 
 function drawSky() {
@@ -667,22 +714,27 @@ function displayHUD() {
 	ctx.restore();
 	ctx.drawImage(uiImgs[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
 	
+	//  amount gold collected
 	ctx.font = "Bold 20px Arial";
 	ctx.fillStyle = "#f7e683";
 	ctx.strokeStyle = "#000000";
 	ctx.fillText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
 	ctx.strokeText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
-}
-
-function win() {
-	if (player.x >= winSpot.x && player.x <= winSpot.x + winSpot.w) {
-		if (player.y >= winSpot.y && player.y <= winSpot.y + winSpot.h) {
-			if (gameArea.keys && gameArea.keys[key.up]) {
-				return true;
-			}
-		}
+	
+	// time left
+	var minutes = Math.floor(gameArea.timer / 60);
+	var seconds = Math.floor(gameArea.timer % 60); 
+	ctx.font = "Bold 40px Arial";
+	ctx.strokeStyle = "#000000";
+	if (gameArea.timer < 11) { ctx.fillStyle = "#ff0000"; }
+	else { ctx.fillStyle = "#f1e683"; }
+	
+	if (seconds < 10) {
+		seconds = "0" + seconds;
 	}
-	return false;
+	
+	ctx.fillText(minutes + ":" + seconds, camera.x1+605, camera.y1+40);
+	ctx.strokeText(minutes + ":" + seconds, camera.x1+605, camera.y1+40);
 }
 
 // *********************************************************************************** //
@@ -1113,9 +1165,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// check just y collision
 			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {				
 				this.speedY *= -0.9;
-				if (this.bounces) {
-					//this.numBounce++;
-				}
+				this.shouldDie = true;
 				break;
 			}
 		}
@@ -1127,6 +1177,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 					this.speedY *= -0.9;
+					this.shouldDie = true;
 					break;
 				}
 			}
@@ -1134,6 +1185,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// check just x collision
 			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 				this.speedX *= -0.9;
+				this.shouldDie = true;
 				//this.numBounce++;
 				break;
 			}	
@@ -1197,10 +1249,6 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 		dw = width+colAdj, 					// frame width (destination)
 		dh = height+colAdj;					// frame height (destination)
 	
-	var sinceStart = now - startTime;
-	var currentFps = Math.round(1000 / (sinceStart/frameCount));
-	
-	if (debug) document.getElementById("test9").innerHTML = currentFps;
 	++sprite.tickCount;
 	if (sprite.tickCount > sprite.ticksPerFrame) {
 		sprite.tickCount = 0;
@@ -1333,7 +1381,8 @@ function updatePlayerStates() {
 		if (gameArea.keys && gameArea.keys[key.a]) {
 			changeState(player, playerState.Jumping);
 		}
-		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
+		if ((gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) ||
+				!gameArea.keys) {
 			changeState(player, playerState.Idling);
 		}
 		break;
