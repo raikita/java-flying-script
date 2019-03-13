@@ -1,8 +1,9 @@
 /*
  *  TODO: Projectile explode when hit enemy, fade when dying
- *  TODO: Animations
- *  TODO: Projectile Collision
- *  TODO: Point system
+ *  TODO: Animations -> Dying, Jumping, Falling, Ouching, Gliding for player, Ouching for enemy
+ *  TODO: Point system <-- Show it in win screen
+ *  TODO: Populate with more gold
+ *  TODO: Add healing???? Maybe, maybe not.
  *  
  */
 
@@ -30,11 +31,14 @@ var playerImgIndex = {
 	};
 
 var enemyImgIndex = {
-		IDLE : 0
+		IDLE : 0,
+		ATTACK : 1,
+		OUCH : 2
 	};
 
 var projectileImgIndex = {
-		FIRE : 0
+		FIRE : 0,
+		FIREEXPLODE : 1
 	};
 
 var itemImgIndex = {
@@ -103,6 +107,7 @@ var gameArea = {
 		canvas : document.getElementById('canvas'),
 		timer : 0, 
 		totalGold : 0,
+		totalEnemies: 0,
 		frameCount : 0,
 		fpsInterval : 0,
 		startTime : 0,
@@ -207,9 +212,12 @@ function loadGame() {
 	
 	// ENEMY SPRITES
 	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
+	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idleAttack.png"));
+	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/hurt.png"));
 	
 	// PROJECTILE SPRITES
 	loading.push(loadImages(projectileImgs, "imgs/projectiles/fire.png"));
+	loading.push(loadImages(projectileImgs, "imgs/projectiles/fireExplode.png"));
 	
 	// ITEM SPRITES
 	loading.push(loadImages(itemImgs, "imgs/items/goldbar.png"));
@@ -217,8 +225,10 @@ function loadGame() {
 	// HUD
 	loading.push(loadImages(uiImgs, "imgs/hud.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud-heart-black.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-flyRed.png"));
 	loading.push(loadImages(uiImgs, "imgs/hud-flyGreen.png"));
+	loading.push(loadImages(uiImgs, "imgs/hud-time.png"));
 	
 	$.when.apply(null, loading).done(function() {
 		startGame();
@@ -304,7 +314,9 @@ function gameLevel1() {
     levelLimitsx = 8192, levelLimitsy = 2048;
     playerStartx = 190, playerStarty = 340;
     
-    gameArea.timer = 90;
+    gameArea.timer = 180;
+    gameArea.totalGold = 0;
+    gameArea.totalEnemies = 0;
     
     files = ['level1-ground.txt',
     		 'level1-clouds.txt'];
@@ -369,9 +381,11 @@ function gameLevel1() {
 function spawnEnemy(type, x, y) {
 	// new enemy: imgsrc, width, height, x, y, hitpoints
 	if (type == 1) {
-		var e = new enemy("", 70, 70, "Orange", x, y, 5, type);
+		var e = new enemy("", 70, 70, "Orange", x, y, 3, type);
 		allEnemies.push(e);
 	}
+	
+	++gameArea.totalEnemies;
 }
 
 function spawnGold(x, y) {
@@ -426,8 +440,15 @@ function updateGameArea() {
 	// update logic
 	controls();
 	player.updatePos();
-	if (debug) document.getElementById("test10").innerHTML = "inViewEnemies: " + inViewEnemies.length;
-		
+	
+	if (!debug)  {
+		document.getElementById("test11").innerHTML = "gold: "+
+		Math.round((player.collectedGold/gameArea.totalGold)*100)+"%, "+
+		player.collectedGold+"/"+gameArea.totalGold+"<br>enemies: "+
+		Math.round(((gameArea.totalEnemies-allEnemies.length)/gameArea.totalEnemies)*100)+"%, "+
+		allEnemies.length+"/"+gameArea.totalEnemies;
+	}
+	
 	for (var i = 0; i < allProjectiles.length; ++i) {
 		allProjectiles[i].updatePos();
 		if (allProjectiles[i].shouldDie) {
@@ -629,11 +650,16 @@ function endScreen() {
 	ctx.fillStyle = "black";
 	ctx.fillRect(camera.x1, camera.y1, canvas.width, canvas.height);
 	
-	ctx.fillStyle = "#fff49f";
-	ctx.font = "bold 50px Arial";
-	
 	if (gameArea.endType == "win") {
 		endWords = "YOU WIN!";
+		
+		ctx.font = "30px Arial";
+		ctx.fillStyle = "#938496";
+		if (player.collectedGold == gameArea.totalGold && allEnemies.length == 0) {
+			ctx.fillText("PERFECT!", camera.x1+(canvas.width / 2) - 100, camera.y1+(canvas.height / 2) - 80);
+		}
+		ctx.fillText("Total Gold Collected: " + Math.round((player.collectedGold/gameArea.totalGold)*100)+"%", camera.x1+(canvas.width / 2) - 75, camera.y1+(canvas.height / 2) - 50);
+		ctx.fillText("Total Enemies Vanquished: " + Math.round(((gameArea.totalEnemies-allEnemies.length)/gameArea.totalEnemies)*100)+"%", camera.x1+(canvas.width / 2) - 75, camera.y1+(canvas.height / 2) - 20);
 	}
 	if (gameArea.endType == "lose"){
 		endWords = "YOU'RE DEAD!";
@@ -644,10 +670,12 @@ function endScreen() {
 		endWords = "TIMEOUT!";
 	}
 	
+	ctx.font = "50px Arial";
+	ctx.fillStyle = "#fff49f";
 	ctx.fillText(endWords, camera.x1+(canvas.width / 2) - 150, camera.y1+(canvas.height / 2) - 100);
 
 	ctx.font = "30px Arial";
-	ctx.fillStyle = "#fff49f";
+	ctx.fillRect(camera.x1+275, camera.y1+286, 10, 10);
 	ctx.fillText("Quit", camera.x1+300, camera.y1+300);
 	
 	// restart
@@ -706,21 +734,23 @@ function drawLevel(x, y, width, height, type) {
 function displayHUD() {
 	var ctx = gameArea.context;
 	
-	ctx.drawImage(uiImgs[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's blood
+	ctx.drawImage(uiImgs[3], 0, 40, 198*2, 201*2, camera.x1, camera.y1+20, 198, 201);	// black heart
+	ctx.drawImage(uiImgs[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's red blood
 	
-	ctx.drawImage(uiImgs[3], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly red
+	ctx.drawImage(uiImgs[4], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly red
 	ctx.save();
 	ctx.globalAlpha = (player.maxWingBeats - player.wingBeats)/5;
-	ctx.drawImage(uiImgs[4], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly green
+	ctx.drawImage(uiImgs[5], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly green
 	ctx.restore();
 	ctx.drawImage(uiImgs[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
+	ctx.drawImage(uiImgs[6], 0, 0, 198*2, 201*2, camera.x2-179, camera.y1, 198, 201);	// hud	time
 	
 	//  amount gold collected
-	ctx.font = "Bold 20px Arial";
+	ctx.font = "Bold 25px Arial";
 	ctx.fillStyle = "#f7e683";
 	ctx.strokeStyle = "#000000";
-	ctx.fillText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
-	ctx.strokeText("x" + player.collectedGold, camera.x1+135, camera.y1+20);
+	ctx.fillText("x" + player.collectedGold, camera.x1+120, camera.y1+20);
+	ctx.strokeText("x" + player.collectedGold, camera.x1+120, camera.y1+20);
 	
 	// time left
 	var minutes = Math.floor(gameArea.timer / 60);
@@ -1035,13 +1065,15 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.attackFrames = 0;
 	this.attackFramesMax = 50;
+	this.ouchFrames = 0;
+	this.ouchFramesMax = 15;
 	this.dyingFrames = 0;
 	this.dyingFramesMax = 50;
 	
 	this.draw = function () {
 		var ctx = gameArea.context;
 		if (this.stateChange) {
-			this.frameIndex = 0;
+			//this.frameIndex = 0;	// all animations will not restart
 			this.stateChange = false;
 		}
 		
@@ -1051,11 +1083,15 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 			this.maxFrames = 23;
 			break;
 		case enemyState.Attacking:
-			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.image.src = enemyImgs[enemyImgIndex.ATTACK].src;
+			this.maxFrames = 23;
+			break;
+		case enemyState.Ouching:
+			this.image.src = enemyImgs[enemyImgIndex.OUCH].src;
 			this.maxFrames = 23;
 			break;
 		case enemyState.Dying:
-			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.image.src = enemyImgs[enemyImgIndex.OUCH].src;
 			this.maxFrames = 23;
 			break;
 		}
@@ -1089,13 +1125,17 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 		if (collideObject(this.x, this.y, player, this.width*1.5, this.height*1.5)) {
 			changeState(this, enemyState.Attacking);
 		}
+		else if (this.state == enemyState.Attacking) {
+			changeState(this, enemyState.Idling);
+		}
 		
 		// check if it got shot
 		for (var i = 0; i < allProjectiles.length; ++i) {
 			// if the owner is true then it belongs to the player
-			if (allProjectiles[i].owner && collideObject(this.x, this.y, allProjectiles[i], this.width, this.height)) {
+			if (!allProjectiles[i].dying && allProjectiles[i].owner && collideObject(this.x, this.y, allProjectiles[i], this.width, this.height)) {
 				this.hitPoints--;
-				allProjectiles[i].shouldDie = true;
+				changeState(this, enemyState.Ouching);
+				allProjectiles[i].dying = true;
 				if (this.hitPoints <= 0) {
 					changeState(this, enemyState.Dying);
 				}
@@ -1126,22 +1166,27 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.lifeSpan = 90;	// lives for how many frames
 	this.shouldDie = false;
 	this.dying = false;
-	this.dyingFrames = 20;
+	this.dyingFrames = 8;
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 1;		// number of updates until next frame should be displayed, FPS
-	this.maxFrames = 6;
+	this.ticksPerFrame = 2;		// number of updates until next frame should be displayed, FPS
+	this.maxFrames = 1;
 	
 	this.updatePos = function() {
 		this.detectOutOfBounds();
 		
 		this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
-			this.shouldDie = true;
+			this.dying = true;
 			return;
 		}
-		
+		if (this.dying) {
+			this.dyingFrames--;
+			if (this.dyingFrames <= 0) {
+				this.shouldDie = true;
+			}
+		}
 		this.speedY += this.accelY;
 		
 		this.detectCollision();
@@ -1149,8 +1194,11 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			this.shouldDie = true;
 		}
 		
-		this.x += this.speedX;
-		this.y += this.speedY;
+		if (!this.dying && !this.shouldDie) {
+			this.x += this.speedX;
+			this.y += this.speedY;
+		} 
+		
 	}
 	
 	this.detectOutOfBounds = function() {
@@ -1160,10 +1208,18 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	}
 	
 	this.draw = function() {
-		this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
-		this.maxFrames = 5;
+		if (this.dying) {
+			this.image.src = projectileImgs[projectileImgIndex.FIREEXPLODE].src;
+			this.maxFrames = 15;
+			drawSprite(this, this.image, 100, 100, this.width*2, this.height*2, this.maxFrames);
+		}
+		else {
+			this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
+			this.maxFrames = 5;
+			drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
+		}
 
-		drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
+		
 	}
 	
 	this.detectCollision = function() {
@@ -1174,7 +1230,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// check just y collision
 			if (collide(this.x, this.y + this.speedY, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {				
 				this.speedY *= -0.9;
-				this.shouldDie = true;
+				this.dying = true;
 				break;
 			}
 		}
@@ -1186,7 +1242,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 				if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) &&
 					!collide(this.x + this.speedX, this.y - j, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 					this.speedY *= -0.9;
-					this.shouldDie = true;
+					this.dying = true;
 					break;
 				}
 			}
@@ -1194,7 +1250,7 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 			// check just x collision
 			if (collide(this.x + this.speedX, this.y, inViewPlatforms[i], this.width, this.height) && inViewPlatforms[i].type == "ground") {
 				this.speedX *= -0.9;
-				this.shouldDie = true;
+				this.dying = true;
 				//this.numBounce++;
 				break;
 			}	
@@ -1282,14 +1338,14 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 function enemyUpdateStates(enemy) {
 	switch (enemy.state) {
 	case enemyState.Idling:
-		// reset all frames
-		enemy.attackFrames = 0;
 		break;
 	case enemyState.Attacking:
-		++enemy.attackFrames;
-		if (enemy.attackFrames >= enemy.attackFramesMax) {
-			enemy.state = enemyState.Idling;
-			//changeState(this, enemyState.Idling);	// this isn't working, i am confused
+		break;
+	case enemyState.Ouching:
+		++enemy.ouchFrames;
+		if (enemy.ouchFrames >= enemy.ouchFramesMax) {
+			enemy.ouchFrames = 0;
+			changeState(enemy, enemyState.Idling);
 		}
 		break;
 	case enemyState.Dying:
@@ -1372,6 +1428,14 @@ function controls() {
 }
 
 function updatePlayerStates() {
+	// make sure that jumping and flying frames are reset
+	if (player.state != playerState.Jumping) {
+		jumpingFrames = 0;
+	}
+	if (player.state != playerState.Flying) {
+		flyingFrames = 0;
+	}
+	
 	switch (player.state) {
 	case playerState.Idling:
 		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown) {
@@ -1452,6 +1516,7 @@ function dying() {
 	if (dyingFrames <= 100) {
 		player.speedX = 0;
 		player.speedY = 0;
+		player.accel = 0;
 	}
 	if (dyingFrames > 100) {
 		player.kill = true;
@@ -1467,12 +1532,6 @@ function idling() {
 function running() {
 	player.accelY = 2;
 	player.wingBeats = 0;
-	if (player.notCollidingY > 20) {
-		//changeState(player, playerState.Falling);
-		player.state = playerState.Falling;
-		player.accelY = 0;
-		player.notCollidingY = 20;
-	}
 }
 
 function falling() {
@@ -1483,7 +1542,6 @@ function falling() {
 	
 	if (player.speedY == 0) {
 		if (hitGround()) {
-			//changeState(player, playerState.Landing);
 			player.state = playerState.Landing;
 		}
 	}
