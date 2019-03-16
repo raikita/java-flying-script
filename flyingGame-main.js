@@ -1,55 +1,97 @@
 /*
- *  TODO: Projectile explode when hit enemy, fade when dying
- *  TODO: Animations -> Dying, Jumping, Falling, Ouching, Gliding for player, Ouching for enemy
- *  TODO: Point system <-- Show it in win screen
+ *  TODO: Animations -> Dying, Jumping, Falling, Ouching, Gliding for player
  *  TODO: Populate with more gold
  *  TODO: Add healing???? Maybe, maybe not.
  *  
  */
 
-var debug = false, showCollision = false;
+var debug = true, showCollision = false;
 
 var files;
 var player;
-var allPlatforms = [], inViewPlatforms = [], 
-	allProjectiles = [], 
-	allEnemies = [], inViewEnemies = [],dyingEnemies = [],
-	allCloudPlatforms = [], inViewCloudPlatforms = [],
-	allGold = [], inViewGold = [];
+
 var levelLimitsx, levelLimitsy, playerStartx, playerStarty;
 var keydown = false, flyKeydown = false, shootKeydown = false;
-var flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0;
-var worldGravity = 5;
+
 var winSpot = {x:0, y:0, w:0, h:0};
-var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [], itemImgs = [];
 
-var playerImgIndex = {
-		IDLE : 0,
-		WALK : 1,
-		FLY: 2,
-		GLIDE: 3,
-	};
 
-var enemyImgIndex = {
-		IDLE : 0,
-		ATTACK : 1,
-		OUCH : 2
-	};
+var allPlatforms = [], inViewPlatforms = [], 
+allProjectiles = [], 
+allEnemies = [], inViewEnemies = [],dyingEnemies = [],
+allCloudPlatforms = [], inViewCloudPlatforms = [],
+allGold = [], inViewGold = [],
+gravity = 5;
 
-var projectileImgIndex = {
-		FIRE : 0,
-		FIREEXPLODE : 1
-	};
-
-var itemImgIndex = {
-		GOLD : 0
-}
-
-var bgImgIndex = {
-		LAYERMID : 0,
-		LAYERFRONT: 1,
-		LAYERBACK : 2,
-	};
+var images = (function() {
+	var playerImgIndex = {
+			IDLE : 0,
+			WALK : 1,
+			FLY: 2,
+			GLIDE: 3,
+			DIE : 4
+		};
+	var enemyImgIndex = {
+			IDLE : 0,
+			ATTACK : 1,
+			OUCH : 2
+		};
+	var projectileImgIndex = {
+			FIRE : 0,
+			FIREEXPLODE : 1
+		};
+	var itemImgIndex = {
+			GOLD : 0
+		};
+	var bgImgIndex = {
+			LAYERMID : 0,
+			LAYERFRONT: 1,
+			LAYERBACK : 2,
+		};
+	
+	var playerImgs = [], bgImgs = [], uiImgs = [], enemyImgs = [], projectileImgs = [], itemImgs = [];
+	
+	return {
+		// indices
+		playerIndex: function() {
+			return playerImgIndex;
+		},
+		enemyIndex: function() {
+			return enemyImgIndex;
+		},
+		projectileIndex: function() {
+			return projectileImgIndex;
+		},
+		itemIndex: function() {
+			return itemImgIndex;
+		},
+		bgIndex: function() {
+			return bgImgIndex;
+		},
+		
+		
+		// image urls
+		player: function() {
+			return playerImgs;
+		},
+		bg: function() {
+			return bgImgs;
+		},
+		ui: function() {
+			return uiImgs;
+		},
+		enemy: function() {
+			return enemyImgs;
+		},
+		projectile: function() {
+			return projectileImgs;
+		},
+		item: function() {
+			return itemImgs;
+		}
+	}
+	
+})();
 
 var playerState = {
 		Falling:"falling",
@@ -163,7 +205,7 @@ function openGame() {
 
 	var loading = [];
 	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
-	loading.push(loadImages(uiImgs, "imgs/startscreen.png"));
+	loading.push(loadImages(images.ui(), "imgs/startscreen.png"));
 	
 	$.when.apply(null, loading).done(function() {
 		gameArea.keys();
@@ -175,7 +217,7 @@ function mainMenu() {
 	var canvas = document.getElementById("canvas"),
 		ctx = canvas.getContext("2d");
 		
-	ctx.drawImage(uiImgs[0], camera.x1, camera.y1, canvas.width, canvas.height);
+	ctx.drawImage(images.ui()[0], camera.x1, camera.y1, canvas.width, canvas.height);
 
 	ctx.font = "30px Arial";
 	ctx.fillStyle = "#fff49f";
@@ -200,35 +242,36 @@ function loadGame() {
 	var loading = [];
 	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
 	// BACKGROUND
-	loading.push(loadImages(bgImgs, "imgs/levels/level1-ground.png"));
-	loading.push(loadImages(bgImgs, "imgs/levels/level1-clouds.png"));
-	loading.push(loadImages(bgImgs, "imgs/levels/level1-bg-1.png"));
+	loading.push(loadImages(images.bg(), "imgs/levels/level1-ground.png"));
+	loading.push(loadImages(images.bg(), "imgs/levels/level1-clouds.png"));
+	loading.push(loadImages(images.bg(), "imgs/levels/level1-bg-1.png"));
 	
 	// PLAYER SPRITES
-	loading.push(loadImages(playerImgs, "imgs/player/idle.png"));
-	loading.push(loadImages(playerImgs, "imgs/player/walk.png"));
-	loading.push(loadImages(playerImgs, "imgs/player/fly.png"));
-	loading.push(loadImages(playerImgs, "imgs/player/glide.png"));
+	loading.push(loadImages(images.player(), "imgs/player/idle.png"));
+	loading.push(loadImages(images.player(), "imgs/player/walk.png"));
+	loading.push(loadImages(images.player(), "imgs/player/fly.png"));
+	loading.push(loadImages(images.player(), "imgs/player/glide.png"));
+	loading.push(loadImages(images.player(), "imgs/player/die.png"));
 	
 	// ENEMY SPRITES
-	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idle.png"));
-	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/idleAttack.png"));
-	loading.push(loadImages(enemyImgs, "imgs/enemies/pipo/hurt.png"));
+	loading.push(loadImages(images.enemy(), "imgs/enemies/pipo/idle.png"));
+	loading.push(loadImages(images.enemy(), "imgs/enemies/pipo/idleAttack.png"));
+	loading.push(loadImages(images.enemy(), "imgs/enemies/pipo/hurt.png"));
 	
 	// PROJECTILE SPRITES
-	loading.push(loadImages(projectileImgs, "imgs/projectiles/fire.png"));
-	loading.push(loadImages(projectileImgs, "imgs/projectiles/fireExplode.png"));
+	loading.push(loadImages(images.projectile(), "imgs/projectiles/fire.png"));
+	loading.push(loadImages(images.projectile(), "imgs/projectiles/fireExplode.png"));
 	
 	// ITEM SPRITES
-	loading.push(loadImages(itemImgs, "imgs/items/goldbar.png"));
+	loading.push(loadImages(images.item(), "imgs/items/goldbar.png"));
 	
 	// HUD
-	loading.push(loadImages(uiImgs, "imgs/hud.png"));
-	loading.push(loadImages(uiImgs, "imgs/hud-heart.png"));
-	loading.push(loadImages(uiImgs, "imgs/hud-heart-black.png"));
-	loading.push(loadImages(uiImgs, "imgs/hud-flyRed.png"));
-	loading.push(loadImages(uiImgs, "imgs/hud-flyGreen.png"));
-	loading.push(loadImages(uiImgs, "imgs/hud-time.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud-heart.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud-heart-black.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud-flyRed.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud-flyGreen.png"));
+	loading.push(loadImages(images.ui(), "imgs/hud-time.png"));
 	
 	$.when.apply(null, loading).done(function() {
 		startGame();
@@ -249,7 +292,7 @@ function loadImages(array, src) {
 function loadingScreen() {
 	var canvas = document.getElementById("canvas");
 	var ctx = canvas.getContext("2d");
-	var lin = ctx.createLinearGradient(0, 0, 1, 525);
+	var lin = ctx.createLinearGradient(camera.x1, camera.y1, 1, 526);
 	
 	lin.addColorStop(0, "#efe2c0");
 	lin.addColorStop(1, "#0b2834");
@@ -304,7 +347,7 @@ function loadFile() {
 
 function startGame() {
     gameLevel1();
-    player = new playerSprite(80, 80, playerImgs[playerImgIndex.IDLE].src, playerStartx, playerStarty);
+    player = new playerSprite(80, 80, images.player()[images.playerIndex().IDLE].src, playerStartx, playerStarty);
     inCameraView();
     gameArea.start();
 }
@@ -441,7 +484,7 @@ function updateGameArea() {
 	controls();
 	player.updatePos();
 	
-	if (!debug)  {
+	if (debug)  {
 		document.getElementById("test11").innerHTML = "gold: "+
 		Math.round((player.collectedGold/gameArea.totalGold)*100)+"%, "+
 		player.collectedGold+"/"+gameArea.totalGold+"<br>enemies: "+
@@ -545,11 +588,13 @@ function quitGame() {
 	var canvas = document.getElementById("canvas");
 	keydown = false;
 	gameArea.keys = false;
-	player = null;
-	allPlatforms = [], inViewPlatforms = [], 
+	delete player;
+	
+	allPlatforms = [];
+	inViewPlatforms = []; 
 	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
 	allCloudPlatforms = [], inViewCloudPlatforms = [],
-	flyingFrames = 0, jumpingFrames = 0, landingFrames = 0, ouchingFrames = 0, dyingFrames = 0,
+	
 	gameArea.selection = 0;
 	
 	gameArea.mainMenuLoop = requestAnimationFrame(mainMenu);
@@ -658,8 +703,12 @@ function endScreen() {
 		if (player.collectedGold == gameArea.totalGold && allEnemies.length == 0) {
 			ctx.fillText("PERFECT!", camera.x1+(canvas.width / 2) - 100, camera.y1+(canvas.height / 2) - 80);
 		}
-		ctx.fillText("Total Gold Collected: " + Math.round((player.collectedGold/gameArea.totalGold)*100)+"%", camera.x1+(canvas.width / 2) - 75, camera.y1+(canvas.height / 2) - 50);
-		ctx.fillText("Total Enemies Vanquished: " + Math.round(((gameArea.totalEnemies-allEnemies.length)/gameArea.totalEnemies)*100)+"%", camera.x1+(canvas.width / 2) - 75, camera.y1+(canvas.height / 2) - 20);
+		ctx.fillText("Total Gold Collected: " + 
+				Math.round((player.collectedGold/gameArea.totalGold)*100)+"%", 
+				camera.x1+(canvas.width / 2) - 205, camera.y1+(canvas.height / 2) - 50);
+		ctx.fillText("Total Enemies Vanquished: " + 
+				Math.round(((gameArea.totalEnemies-allEnemies.length)/gameArea.totalEnemies)*100)+"%", 
+				camera.x1+(canvas.width / 2) - 205, camera.y1+(canvas.height / 2) - 20);
 	}
 	if (gameArea.endType == "lose"){
 		endWords = "YOU'RE DEAD!";
@@ -709,10 +758,10 @@ function drawLevel(x, y, width, height, type) {
 	if (debug) document.getElementById("test1").innerHTML = "Collision triangles: " + inViewPlatforms.length + "/" + allPlatforms.length + 
 	"<br>player.x: " + player.x + "<br>player.y: " + player.y;
 	
-	if (type == "layerMid") {background.src = bgImgs[bgImgIndex.LAYERMID].src;}
-	if (type == "layerFront") {background.src = bgImgs[bgImgIndex.LAYERFRONT].src;}
+	if (type == "layerMid") {background.src = images.bg()[images.bgIndex().LAYERMID].src;}
+	if (type == "layerFront") {background.src = images.bg()[images.bgIndex().LAYERFRONT].src;}
 	if (type == "layerBack") {
-		background.src = bgImgs[bgImgIndex.LAYERBACK].src;
+		background.src = images.bg()[images.bgIndex().LAYERBACK].src;
 		ctx.drawImage(background, camera.x1>>3, (camera.y1>>2)-200, camera.x2, camera.y2, camera.x1, camera.y1, camera.x2, camera.y2);
 		return;	
 	}
@@ -734,16 +783,16 @@ function drawLevel(x, y, width, height, type) {
 function displayHUD() {
 	var ctx = gameArea.context;
 	
-	ctx.drawImage(uiImgs[3], 0, 40, 198*2, 201*2, camera.x1, camera.y1+20, 198, 201);	// black heart
-	ctx.drawImage(uiImgs[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's red blood
+	ctx.drawImage(images.ui()[3], 0, 40, 198*2, 201*2, camera.x1, camera.y1+20, 198, 201);	// black heart
+	ctx.drawImage(images.ui()[2], 0, 40+(5-player.hitPoints)*5*2, 198*2, 201*2, camera.x1, camera.y1+20+(5-player.hitPoints)*5, 198, 201);	// heart's red blood
 	
-	ctx.drawImage(uiImgs[4], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly red
+	ctx.drawImage(images.ui()[4], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly red
 	ctx.save();
 	ctx.globalAlpha = (player.maxWingBeats - player.wingBeats)/5;
-	ctx.drawImage(uiImgs[5], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly green
+	ctx.drawImage(images.ui()[5], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// fly green
 	ctx.restore();
-	ctx.drawImage(uiImgs[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
-	ctx.drawImage(uiImgs[6], 0, 0, 198*2, 201*2, camera.x2-179, camera.y1, 198, 201);	// hud	time
+	ctx.drawImage(images.ui()[1], 0, 0, 198*2, 201*2, camera.x1, camera.y1, 198, 201);	// hud	
+	ctx.drawImage(images.ui()[6], 0, 0, 198*2, 201*2, camera.x2-179, camera.y1, 198, 201);	// hud	time
 	
 	//  amount gold collected
 	ctx.font = "Bold 25px Arial";
@@ -788,7 +837,7 @@ function playerSprite(width, height, img, x, y) {
 	this.x = x;
 	this.y = y;
 	
-	this.accelY = worldGravity;
+	this.accelY = gravity;
 	this.speedY = 0;
 	this.maxGravitySpeed = 15;
 	this.maxFlySpeed = -10;
@@ -800,6 +849,12 @@ function playerSprite(width, height, img, x, y) {
 	this.accel = 0;
 	this.maxAccel = 10;
 	
+	this.flyingFrames = 0;
+	this.jumpingFrames = 0;
+	this.landingFrames = 0;
+	this.ouchingFrames = 0;
+	this.dyingFrames = 0;
+	
 	this.hitGround = false;
 	this.hitPoints = 5;
 	this.invincible = 0;
@@ -808,10 +863,8 @@ function playerSprite(width, height, img, x, y) {
 	
 	this.collectedGold = 0;
 	
-	this.notCollidingY = 0;
-	
 	this.shootProjectile = function() {
-		if (allProjectiles.length >= 5) {
+		if (allProjectiles.length > 5) {
 			return;
 		}
 		var col = "Red"
@@ -861,32 +914,36 @@ function playerSprite(width, height, img, x, y) {
 		
 		switch (this.state) {
 		case playerState.Idling:
-			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.image.src = images.player()[images.playerIndex().IDLE].src;
 			this.maxFrames = 35;
 			break;
 		case playerState.Running:
-			this.image.src = playerImgs[playerImgIndex.WALK].src;
+			this.image.src = images.player()[images.playerIndex().WALK].src;
 			this.maxFrames = 27;
 			break;
 		case playerState.Flying:
-			this.image.src = playerImgs[playerImgIndex.FLY].src;
+			this.image.src = images.player()[images.playerIndex().FLY].src;
 			this.maxFrames = 8;
 			break;
 		case playerState.Gliding:
-			this.image.src = playerImgs[playerImgIndex.GLIDE].src;
+			this.image.src = images.player()[images.playerIndex().GLIDE].src;
 			this.maxFrames = 1;
 			break;
 		case playerState.Falling:
-			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.image.src = images.player()[images.playerIndex().IDLE].src;
 			this.maxFrames = 35;
 			break;
 		case playerState.Jumping:
-			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.image.src = images.player()[images.playerIndex().IDLE].src;
 			this.maxFrames = 35;
 			break;
 		case playerState.Ouching:
-			this.image.src = playerImgs[playerImgIndex.IDLE].src;
+			this.image.src = images.player()[images.playerIndex().IDLE].src;
 			this.maxFrames = 35;
+			break;
+		case playerState.Dying:
+			this.image.src = images.player()[images.playerIndex().DIE].src;
+			this.maxFrames = 1;
 			break;
 		}
 		if (this.invincible == 0 || (this.invincible % 10 >= 0 && this.invincible % 10 < 5)) {
@@ -947,7 +1004,6 @@ function playerSprite(width, height, img, x, y) {
 				else {
 					this.hitGround = false;
 				}
-				this.notCollidingY = 0;
 				
 				if (inViewPlatforms[i].type == "ground") {
 					this.speedY = 0;
@@ -958,20 +1014,21 @@ function playerSprite(width, height, img, x, y) {
 				}
 				else if (inViewPlatforms[i].type == "cloud") {
 					if (this.accelY > 0) {
-						this.accelY *= 0.5;
-						this.speedY *= 0.5;
+						if (this.state == playerState.Gliding) {
+							this.accelY *= 0.75;
+							this.speedY *= 0.75;
+						} else {
+							this.accelY *= 0.5;
+							this.speedY *= 0.5;
+						}
+						
 					}
 					this.wingBeats = 0;
-					if (this.state == playerState.Gliding) {
-						changeState(this, playerState.Falling); // making it a different type of falling animation
-					}
+					
 					if (debug) document.getElementById("test4").innerHTML = "y Cloud Collision ";
 				}
 				break;
 			}
-			// stop from falling at the speed of too fast, quick hacking fix
-			++this.notCollidingY;
-			if (this.notCollidingY > 450) this.notCollidingY = 450;
 		}
 		this.y += this.speedY;
 		
@@ -982,7 +1039,6 @@ function playerSprite(width, height, img, x, y) {
 			if (inViewPlatforms[i].type == "ground") {
 				// slope up
 				for (var n = 0; n <= slopeMax; ++n) {
-					if (debug) document.getElementById("test12").innerHTML = "n: " + n;
 					if (collide(this.x + this.speedX, this.y - n, inViewPlatforms[i], this.width, this.height)) {
 						continue;
 					}
@@ -1007,17 +1063,13 @@ function playerSprite(width, height, img, x, y) {
 				if (inViewPlatforms[i].type == "ground") {
 					this.speedX = 0;
 					this.accel = 0;
-					if (this.state == playerState.Gliding) {
-						changeState(this, playerState.Falling);
-					}
+
 					if (debug) document.getElementById("test3").innerHTML = "x Ground Collision";
 					
 				}
 				else if (inViewPlatforms[i].type == "cloud") {
 					this.speedX *= 0.75;
-					if (this.state == playerState.Gliding) {
-						changeState(this, playerState.Falling);
-					}
+
 					if (debug) document.getElementById("test3").innerHTML = "x Cloud Collision";
 				}
 				break;
@@ -1036,7 +1088,7 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	this.faceRight = false;
 	
 	this.speedX = 0;
-	this.accelY = worldGravity;
+	this.accelY = gravity;
 	this.speedY = 0;
 	
 	this.x = x;
@@ -1072,31 +1124,27 @@ function enemy(image, width, height, colour, x, y, hitPoints, type) {
 	
 	this.draw = function () {
 		var ctx = gameArea.context;
-		if (this.stateChange) {
-			//this.frameIndex = 0;	// all animations will not restart
-			this.stateChange = false;
-		}
 		
 		switch (this.state) {
 		case enemyState.Idling:
-			this.image.src = enemyImgs[enemyImgIndex.IDLE].src;
+			this.image.src = images.enemy()[images.enemyIndex().IDLE].src;
 			this.maxFrames = 23;
 			break;
 		case enemyState.Attacking:
-			this.image.src = enemyImgs[enemyImgIndex.ATTACK].src;
+			this.image.src = images.enemy()[images.enemyIndex().ATTACK].src;
 			this.maxFrames = 23;
 			break;
 		case enemyState.Ouching:
-			this.image.src = enemyImgs[enemyImgIndex.OUCH].src;
+			this.image.src = images.enemy()[images.enemyIndex().OUCH].src;
 			this.maxFrames = 23;
 			break;
 		case enemyState.Dying:
-			this.image.src = enemyImgs[enemyImgIndex.OUCH].src;
+			this.image.src = images.enemy()[images.enemyIndex().OUCH].src;
 			this.maxFrames = 23;
 			break;
 		}
 		
-		// make fade away when dying for now
+		// make fade away when dying
 		if (this.dyingFrames > 0) {
 			ctx.save();
 			ctx.globalAlpha = 1 - (this.dyingFrames/50);
@@ -1166,17 +1214,17 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	this.lifeSpan = 90;	// lives for how many frames
 	this.shouldDie = false;
 	this.dying = false;
-	this.dyingFrames = 8;
+	this.dyingFrames = 12;
 	
 	this.frameIndex = 0;		// current frame to be displayed
 	this.tickCount = 0;			// number of updates since current frame was first displayed
-	this.ticksPerFrame = 2;		// number of updates until next frame should be displayed, FPS
+	this.ticksPerFrame = 3;		// number of updates until next frame should be displayed, FPS
 	this.maxFrames = 1;
 	
 	this.updatePos = function() {
 		this.detectOutOfBounds();
 		
-		this.lifeSpan--;
+		//this.lifeSpan--;
 		if (this.lifeSpan <= 0) {
 			this.dying = true;
 			return;
@@ -1209,13 +1257,13 @@ function projectile(width, height, colour, x, y, owner, bounces, direction, star
 	
 	this.draw = function() {
 		if (this.dying) {
-			this.image.src = projectileImgs[projectileImgIndex.FIREEXPLODE].src;
+			this.image.src = images.projectile()[images.projectileIndex().FIREEXPLODE].src;
 			this.maxFrames = 15;
 			drawSprite(this, this.image, 100, 100, this.width*2, this.height*2, this.maxFrames);
 		}
 		else {
-			this.image.src = projectileImgs[projectileImgIndex.FIRE].src;
-			this.maxFrames = 5;
+			this.image.src = images.projectile()[images.projectileIndex().FIRE].src;
+			this.maxFrames = 3;
 			drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
 		}
 
@@ -1283,7 +1331,7 @@ function gold(width, height, colour, x, y) {
 	}
 	
 	this.draw = function () {
-		this.image.src = itemImgs[itemImgIndex.GOLD].src;
+		this.image.src = images.item()[images.itemIndex().GOLD].src;
 
 		drawSprite(this, this.image, 50, 50, this.width, this.height, this.maxFrames);
 	}
@@ -1430,10 +1478,10 @@ function controls() {
 function updatePlayerStates() {
 	// make sure that jumping and flying frames are reset
 	if (player.state != playerState.Jumping) {
-		jumpingFrames = 0;
+		player.jumpingFrames = 0;
 	}
 	if (player.state != playerState.Flying) {
-		flyingFrames = 0;
+		player.flyingFrames = 0;
 	}
 	
 	switch (player.state) {
@@ -1460,9 +1508,9 @@ function updatePlayerStates() {
 		}
 		break;
 	case playerState.Jumping:
-		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && jumpingFrames > 10) {
+		if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.jumpingFrames > 10) {
 			changeState(player, playerState.Flying);
-			jumpingFrames = 0;
+			player.jumpingFrames = 0;
 			break;
 		}
 		jumping();
@@ -1499,7 +1547,7 @@ function updatePlayerStates() {
 		dying();
 		break;
 	}
-	if (debug) document.getElementById("test2").innerHTML = player.state + "<br>JumpingFrames: " + jumpingFrames;
+	if (debug) document.getElementById("test2").innerHTML = player.state + "<br>player.jumpingFrames: " + player.jumpingFrames;
 }
 
 function hitGround() {
@@ -1512,19 +1560,19 @@ function hitGround() {
 }
 
 function dying() {
-	dyingFrames++;
-	if (dyingFrames <= 100) {
+	player.dyingFrames++;
+	if (player.dyingFrames <= 100) {
 		player.speedX = 0;
 		player.speedY = 0;
 		player.accel = 0;
 	}
-	if (dyingFrames > 100) {
+	if (player.dyingFrames > 100) {
 		player.kill = true;
 	}
 }
 
 function idling() {
-	player.accelY = worldGravity;
+	player.accelY = gravity;
 	player.wingBeats = 0;
 	
 }
@@ -1548,15 +1596,15 @@ function falling() {
 }
 
 function ouching() {
-	ouchingFrames++;
+	player.ouchingFrames++;
 	var owX = 3;
 	
-	if (ouchingFrames < 2) {
+	if (player.ouchingFrames < 2) {
 		player.speedY = -0.5;
 		player.invincible = player.invincibleFrames;
 	}
-	if (ouchingFrames > 8) {
-		ouchingFrames = 0;
+	if (player.ouchingFrames > 8) {
+		player.ouchingFrames = 0;
 		changeState(player, playerState.Landing);
 	}
 	if (player.faceRight) {
@@ -1568,9 +1616,9 @@ function ouching() {
 
 function landing() {
 	player.wingBeats = 0;
-	landingFrames++;
-	if (landingFrames > 1) {
-		landingFrames = 0;
+	player.landingFrames++;
+	if (player.landingFrames > 1) {
+		player.landingFrames = 0;
 		//changeState(player, playerState.Idling);
 		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			player.state = playerState.Idling;
@@ -1593,16 +1641,16 @@ function gliding() {
 
 function jumping() {
 	flyKeydown = false;
-	if (jumpingFrames == 0 && player.accelY > 0) {
+	if (player.jumpingFrames == 0 && player.accelY > 0) {
 		player.accelY = 0;
 	}
 	
-	jumpingFrames++;
-	if (jumpingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && jumpingFrames > 10)) {
+	player.jumpingFrames++;
+	if (player.jumpingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && player.jumpingFrames > 10)) {
 		player.accelY = 1;
 		if (player.speedY >= 0) {
 		changeState(player, playerState.Falling);
-		jumpingFrames = 0;
+		player.jumpingFrames = 0;
 		}
 	}
 	else {
@@ -1615,15 +1663,15 @@ function jumping() {
 
 function flying() {
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats < player.maxWingBeats) {
-		flyingFrames = 0;
+		player.flyingFrames = 0;
 		++player.wingBeats;
 	}
 	
 	flyKeydown = false;
-	flyingFrames++;
-	if (flyingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && flyingFrames > 10)) {
+	player.flyingFrames++;
+	if (player.flyingFrames >= 20 || (!gameArea.keys || !gameArea.keys[key.a] && player.flyingFrames > 10)) {
 		changeState(player, playerState.Gliding);
-		flyingFrames = 0;
+		player.flyingFrames = 0;
 	}
 	else {
 		player.accelY -= 1;
@@ -1640,8 +1688,7 @@ function changeState(sprite, newState) {
 
 function inCameraView() {		
 	// radius larger for enemies and objects
-	var radiusSqr = (gameArea.canvas.clientWidth * gameArea.canvas.clientWidth);
-	radiusSqr = 5000;
+	var radiusSqr = 5000;
 	inViewPlatforms = [];
 	for (var i = allPlatforms.length - 1; i >= 0; --i) {
 		if (collide(player.x, player.y, allPlatforms[i], radiusSqr, radiusSqr)) {
@@ -1650,7 +1697,7 @@ function inCameraView() {
 	}
 
 	radiusSqr = 450000;
-	inViewEnemies = [];
+	inViewEnemies = []
 	for (var i = allEnemies.length - 1; i >= 0; --i) {
 		cx1 = player.x - allEnemies[i].x;
 		cy1 = player.y - allEnemies[i].y;
