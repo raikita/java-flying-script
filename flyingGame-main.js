@@ -1,11 +1,9 @@
 /*
- *  TODO: Animations -> Dying, Jumping, Falling, Ouching, Gliding for player
  *  TODO: Populate with more gold
- *  TODO: Add healing???? Maybe, maybe not.
  *  
  */
 
-var debug = true, showCollision = false;
+var debug = false, showCollision = false;
 
 var files;
 var player;
@@ -29,7 +27,10 @@ var images = (function() {
 			WALK : 1,
 			FLY: 2,
 			GLIDE: 3,
-			DIE : 4
+			DIE : 4,
+			JUMP : 5,
+			FALL : 6,
+			OUCH : 7
 		};
 	var enemyImgIndex = {
 			IDLE : 0,
@@ -252,6 +253,9 @@ function loadGame() {
 	loading.push(loadImages(images.player(), "imgs/player/fly.png"));
 	loading.push(loadImages(images.player(), "imgs/player/glide.png"));
 	loading.push(loadImages(images.player(), "imgs/player/die.png"));
+	loading.push(loadImages(images.player(), "imgs/player/jump.png"));
+	loading.push(loadImages(images.player(), "imgs/player/fall.png"));
+	loading.push(loadImages(images.player(), "imgs/player/ouch.png"));
 	
 	// ENEMY SPRITES
 	loading.push(loadImages(images.enemy(), "imgs/enemies/pipo/idle.png"));
@@ -930,17 +934,17 @@ function playerSprite(width, height, img, x, y) {
 			this.maxFrames = 1;
 			break;
 		case playerState.Falling:
-			this.image.src = images.player()[images.playerIndex().IDLE].src;
-			this.maxFrames = 35;
+			this.image.src = images.player()[images.playerIndex().FALL].src;
+			this.maxFrames = 4;
 			break;
 		case playerState.Jumping:
-			this.image.src = images.player()[images.playerIndex().IDLE].src;
-			this.maxFrames = 35;
+			this.image.src = images.player()[images.playerIndex().JUMP].src;
+			this.maxFrames = 4;
 			break;
 		case playerState.Ouching:
-			this.image.src = images.player()[images.playerIndex().IDLE].src;
-			this.maxFrames = 35;
-			break;
+			this.image.src = images.player()[images.playerIndex().OUCH].src;
+			this.maxFrames = 1;
+			break;ape
 		case playerState.Dying:
 			this.image.src = images.player()[images.playerIndex().DIE].src;
 			this.maxFrames = 1;
