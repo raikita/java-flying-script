@@ -500,6 +500,7 @@ function spawnEnemy(type, x, y) {
 function spawnGold() {
 	var g;
 	gameArea.totalGold = 0;
+	allGold = [];
 	for (var i = 0; i < goldCoords.length; ++i) {
 		g = new gold(25, 25, "Gold", goldCoords[i].x, goldCoords[i].y)
 		allGold.push(g);
