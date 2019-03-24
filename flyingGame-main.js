@@ -18,7 +18,7 @@ var allPlatforms = [], inViewPlatforms = [],
 allProjectiles = [], 
 allEnemies = [], inViewEnemies = [],dyingEnemies = [],
 allCloudPlatforms = [], inViewCloudPlatforms = [],
-allGold = [], inViewGold = [],
+allGold = [], inViewGold = [], goldCoords = [],
 gravity = 5;
 
 var images = (function() {
@@ -241,6 +241,12 @@ function loadGame() {
 	loadingScreen();
 
 	var loading = [];
+	
+	files = ['level1-ground.txt',
+		 'level1-clouds.txt',
+		 'level1-gold.txt'];
+	loading.push(loadFile());
+	
 	// DO IT IN THIS ORDER THE ORDER IS IMPORTANT
 	// BACKGROUND
 	loading.push(loadImages(images.bg(), "imgs/levels/level1-ground.png"));
@@ -316,25 +322,37 @@ function loadFile() {
 		requests[j] = new XMLHttpRequest();
 		requests[j].open('GET', files[j], true);
 		
-		var i, lines, l1, l2, l3, platform, platformType;
+		var i, lines, l1, l2, l3, platform, platformType, gold;
 		
 		requests[j].onload = function() {
 			lines = requests[j].responseText.split("\n");
-			for (var i = 0; i < lines.length; i += 3) {
-				if (typeof lines[i] == "undefined" || typeof lines[i+1] == "undefined" 
-					|| typeof lines[i+1] == "undefined") {
-					continue;
+			// get ground and cloud platforms
+			if (j == 0 || j == 1) {
+				for (var i = 0; i < lines.length; i += 3) {
+					if (typeof lines[i] == "undefined" || typeof lines[i+1] == "undefined" 
+						|| typeof lines[i+1] == "undefined") {
+						continue;
+					}
+					l1 = lines[i].split(" ");
+					l2 = lines[i+1].split(" ");
+					l3 = lines[i+2].split(" ");
+					if (j == 0) platformType = "ground";
+					if (j == 1) platformType = "cloud";
+					platform = {x1:Number(l1[0]), y1:Number(l1[1]),
+								x2:Number(l2[0]), y2:Number(l2[1]),
+								x3:Number(l3[0]), y3:Number(l3[1]),
+								type: platformType};
+					allPlatforms.push(platform);
 				}
-				l1 = lines[i].split(" ");
-				l2 = lines[i+1].split(" ");
-				l3 = lines[i+2].split(" ");
-				if (j == 0) platformType = "ground";
-				if (j == 1) platformType = "cloud";
-				platform = {x1:Number(l1[0]), y1:Number(l1[1]),
-							x2:Number(l2[0]), y2:Number(l2[1]),
-							x3:Number(l3[0]), y3:Number(l3[1]),
-							type: platformType};
-				allPlatforms.push(platform);
+			}
+			// get gold placements
+			if (j == 2) {
+				for (var i = 0; i < lines.length-1; ++i) {
+					l1 = lines[i].split(" ");
+					gold = {x: Number(l1[0]), y: Number(l1[1])};
+					
+					goldCoords.push(gold);
+				}
 			}
 		}
 		requests[j].send(null);
@@ -365,11 +383,6 @@ function gameLevel1() {
     gameArea.totalGold = 0;
     gameArea.totalEnemies = 0;
     
-    files = ['level1-ground.txt',
-    		 'level1-clouds.txt'];
-  
-    loadFile();
-    
     spawnEnemy(1, 500, 1220);
     spawnEnemy(1, 700, 1220);
     spawnEnemy(1, 350, 1220);
@@ -396,29 +409,9 @@ function gameLevel1() {
     spawnEnemy(1, 7110, 850);
     spawnEnemy(1, 1980, 1590);
     spawnEnemy(1, 2090, 1590);
-    spawnEnemy(1, 4590, 1860);   
+    spawnEnemy(1, 4590, 1860);
     
-    spawnGold(1625, 230);
-    spawnGold(1900, 55);
-    spawnGold(1625, 165);
-    spawnGold(1540, 230);
-    spawnGold(1540, 165);
-    spawnGold(1305, 450);
-    spawnGold(1235, 450);
-    spawnGold(1165, 450);
-    spawnGold(1670, 455);
-    spawnGold(2730, 150);
-    spawnGold(2830, 150);
-    spawnGold(2930, 150);
-    spawnGold(710, 1670);
-    spawnGold(780, 1660);
-    spawnGold(850, 1650);
-    spawnGold(930, 1640);
-    spawnGold(1585, 1210);
-    spawnGold(1585, 1280);
-    spawnGold(1585, 1350);
-    spawnGold(1585, 1420);
-    
+    spawnGold();
     winSpot.x = 7530;
     winSpot.y = 1260;
     winSpot.w = 140;
@@ -435,11 +428,14 @@ function spawnEnemy(type, x, y) {
 	++gameArea.totalEnemies;
 }
 
-function spawnGold(x, y) {
-	var g = new gold(25, 25, "Gold", x, y)
-	allGold.push(g);
+function spawnGold() {
+	var g;
 	
-	++gameArea.totalGold;
+	for (var i = 0; i < goldCoords.length; ++i) {
+		g = new gold(25, 25, "Gold", goldCoords[i].x, goldCoords[i].y)
+		allGold.push(g);
+		++gameArea.totalGold;
+	}	
 }
 
 // *********************************************************************************** //
@@ -598,6 +594,8 @@ function quitGame() {
 	inViewPlatforms = []; 
 	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
 	allCloudPlatforms = [], inViewCloudPlatforms = [],
+	allGold = [], inViewGold = [],
+	goldCoords = [];
 	
 	gameArea.selection = 0;
 	
@@ -941,10 +939,14 @@ function playerSprite(width, height, img, x, y) {
 			this.image.src = images.player()[images.playerIndex().JUMP].src;
 			this.maxFrames = 4;
 			break;
+		case playerState.Landing:
+			this.image.src = images.player()[images.playerIndex().IDLE].src;
+			this.maxFrames = 35;
+			break;
 		case playerState.Ouching:
 			this.image.src = images.player()[images.playerIndex().OUCH].src;
 			this.maxFrames = 1;
-			break;ape
+			break;
 		case playerState.Dying:
 			this.image.src = images.player()[images.playerIndex().DIE].src;
 			this.maxFrames = 1;
@@ -1373,7 +1375,7 @@ function drawSprite(sprite, spriteImg, imgWidth, imgHeight, width, height, numFr
 	}
 	
 	if (sprite.frameIndex >= numFrames) {
-		sprite.frameIndex = 1;
+		sprite.frameIndex = 0;
 	}
 
 	if (sprite.faceRight) {
@@ -1605,11 +1607,12 @@ function ouching() {
 	
 	if (player.ouchingFrames < 2) {
 		player.speedY = -0.5;
-		player.invincible = player.invincibleFrames;
+		
 	}
 	if (player.ouchingFrames > 8) {
 		player.ouchingFrames = 0;
 		changeState(player, playerState.Landing);
+		player.invincible = player.invincibleFrames;
 	}
 	if (player.faceRight) {
 		player.accel -= owX;
