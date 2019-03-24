@@ -1,9 +1,9 @@
 /*
- *  TODO: Sounds
+ *  Simple side scroller game
  *  
  */
 
-var debug = false, showCollision = false;
+var debug = true, showCollision = false;
 
 var files;
 var player;
@@ -378,6 +378,7 @@ function loadFile() {
 			}
 			// get gold placements
 			if (j == 2) {
+				goldCoords = [];
 				for (var i = 0; i < lines.length-1; ++i) {
 					l1 = lines[i].split(" ");
 					gold = {x: Number(l1[0]), y: Number(l1[1])};
@@ -479,6 +480,7 @@ function gameLevel1() {
     spawnEnemy(1, 4590, 1860);
     
     spawnGold();
+    
     winSpot.x = 7530;
     winSpot.y = 1260;
     winSpot.w = 140;
@@ -497,7 +499,7 @@ function spawnEnemy(type, x, y) {
 
 function spawnGold() {
 	var g;
-	
+	gameArea.totalGold = 0;
 	for (var i = 0; i < goldCoords.length; ++i) {
 		g = new gold(25, 25, "Gold", goldCoords[i].x, goldCoords[i].y)
 		allGold.push(g);
@@ -660,9 +662,8 @@ function quitGame() {
 	allPlatforms = [];
 	inViewPlatforms = []; 
 	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
-	allCloudPlatforms = [], inViewCloudPlatforms = [],
-	allGold = [], inViewGold = [],
-	goldCoords = [];
+	allCloudPlatforms = [], inViewCloudPlatforms = [];
+	
 	
 	sounds[soundIndex.BGM].pause();
 	sounds[soundIndex.BGM].currentTime = 0.0;
