@@ -1,5 +1,5 @@
 /*
- *  TODO: Populate with more gold
+ *  TODO: Sounds
  *  
  */
 
@@ -20,6 +20,17 @@ allEnemies = [], inViewEnemies = [],dyingEnemies = [],
 allCloudPlatforms = [], inViewCloudPlatforms = [],
 allGold = [], inViewGold = [], goldCoords = [],
 gravity = 5;
+
+var sounds = [];
+
+var soundIndex = {
+		BGM : 0,
+		FLYSFX : 1,
+		OUCHSFX : 2,
+		PROJECTILESFX : 3,
+		GETGOLDSFX : 4,
+		ENEMYDIESFX : 5
+}
 
 var images = (function() {
 	var playerImgIndex = {
@@ -224,6 +235,13 @@ function mainMenu() {
 	ctx.fillStyle = "#fff49f";
 	ctx.fillText("Press Enter", camera.x1+250, camera.y1+262);
 	
+	// show credits
+	ctx.font = "12px Arial";
+	ctx.fillText("Background music: 'Reaching Altitude' by Eric Matyas - www.soundimage.org", camera.x1, camera.y1+475);
+	ctx.fillText("Sound effects: 'Butterfly Sounds', 'Zombie Demon Spawn' by Mike Koenig; 'Buzzard Sound' - www.soundbible.com", camera.x1, camera.y1+490);
+	ctx.fillText("'Ting' by Popup Pixels; 'Falcon Sound' by Mark Mattingly - www.soundbible.com", camera.x1+80, camera.y1+505);
+	ctx.fillText("Everything else by Rukiya Hassan", camera.x1, camera.y1+520);
+
 	// begin game
 	if (gameArea.keys && gameArea.keys[key.enter]) {
 		gameArea.keys = false;
@@ -283,9 +301,22 @@ function loadGame() {
 	loading.push(loadImages(images.ui(), "imgs/hud-flyGreen.png"));
 	loading.push(loadImages(images.ui(), "imgs/hud-time.png"));
 	
+	// SOUNDS
+	loadSound(sounds, "sounds/Reaching-Altitude-clipped.mp3");
+	loadSound(sounds, "sounds/Butterfly-clipped.mp3");
+	loadSound(sounds, "sounds/Buzzard-clipped.mp3");
+	loadSound(sounds, "sounds/Falcon-clipped.mp3");
+	loadSound(sounds, "sounds/Ting.mp3");
+	loadSound(sounds, "sounds/ZombieDemonSpawn.mp3");
+	
 	$.when.apply(null, loading).done(function() {
 		startGame();
 	});	
+}
+
+function loadSound(array, src) {
+	var aud = new Audio(src);
+	array.push(aud);
 }
 
 function loadImages(array, src) {
@@ -372,6 +403,42 @@ function startGame() {
     player = new playerSprite(80, 80, images.player()[images.playerIndex().IDLE].src, playerStartx, playerStarty);
     inCameraView();
     gameArea.start();
+    addSoundEvents();
+}
+
+function addSoundEvents() {
+	// loop background music
+    sounds[soundIndex.BGM].addEventListener('ended', function() {
+    	this.currentTime = 0;
+    	this.play();
+    }, false);
+    sounds[soundIndex.BGM].play();
+    
+    // add sfx's
+    sounds[soundIndex.GETGOLDSFX].addEventListener('getgold', function() {
+    	this.currentTime = 0;
+    	this.play();
+    });
+    
+    sounds[soundIndex.ENEMYDIESFX].addEventListener('enemydie', function() {
+    	this.currentTime = 0;
+    	this.play();
+    });
+    
+    sounds[soundIndex.FLYSFX].addEventListener('playerflying', function() {
+    	this.currentTime = 0;
+    	this.play();
+    });
+    
+    sounds[soundIndex.OUCHSFX].addEventListener('playerouch', function() {
+    	this.currentTime = 0;
+    	this.play();
+    });
+    
+    sounds[soundIndex.PROJECTILESFX].addEventListener('projectile', function() {
+    	this.currentTime = 0;
+    	this.play();
+    });
 }
 
 function gameLevel1() {
@@ -596,6 +663,9 @@ function quitGame() {
 	allCloudPlatforms = [], inViewCloudPlatforms = [],
 	allGold = [], inViewGold = [],
 	goldCoords = [];
+	
+	sounds[soundIndex.BGM].pause();
+	sounds[soundIndex.BGM].currentTime = 0.0;
 	
 	gameArea.selection = 0;
 	
@@ -869,14 +939,17 @@ function playerSprite(width, height, img, x, y) {
 		if (allProjectiles.length > 5) {
 			return;
 		}
+		
+		var shoot = new CustomEvent("projectile", {});
+		sounds[soundIndex.PROJECTILESFX].dispatchEvent(shoot);
 		var col = "Red"
-			var fireBall;
-			if (this.faceRight) {
-			    fireBall = new projectile(20, 20, col, this.x + this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
-			}
-			else {
-			    fireBall = new projectile(20, 20, col, this.x - this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
-			}
+		var fireBall;
+		if (this.faceRight) {
+		    fireBall = new projectile(20, 20, col, this.x + this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
+		}
+		else {
+		    fireBall = new projectile(20, 20, col, this.x - this.width/2, this.y - 20, true, true, this.faceRight, this.accel);
+		}
 	    allProjectiles.push(fireBall);
 	}
 	
@@ -1345,6 +1418,9 @@ function gold(width, height, colour, x, y) {
 	this.detectCollision = function() {
 		// check if collected
 		if (collideObject(this.x, this.y, player, this.width, this.height)) {
+			var getGoldSound = new CustomEvent("getgold", {});
+			sounds[soundIndex.GETGOLDSFX].dispatchEvent(getGoldSound);
+			
 			this.shouldDie = true;
 			++player.collectedGold;
 		}
@@ -1404,6 +1480,10 @@ function enemyUpdateStates(enemy) {
 		break;
 	case enemyState.Dying:
 		++enemy.dyingFrames;
+		if (enemy.dyingFrames == 1) {
+			var death = new CustomEvent("enemydie", {});
+			sounds[soundIndex.ENEMYDIESFX].dispatchEvent(death);
+		}
 		if (enemy.dyingFrames >= enemy.dyingFramesMax) {
 			enemy.shouldDie = true;
 		}
@@ -1567,6 +1647,10 @@ function hitGround() {
 
 function dying() {
 	player.dyingFrames++;
+	if (player.dyingFrames == 1) {
+		var owsqueak = new CustomEvent("playerouch", {});
+		sounds[soundIndex.OUCHSFX].dispatchEvent(owsqueak);
+	}
 	if (player.dyingFrames <= 100) {
 		player.speedX = 0;
 		player.speedY = 0;
@@ -1605,6 +1689,11 @@ function ouching() {
 	player.ouchingFrames++;
 	var owX = 3;
 	
+	if (player.ouchingFrames == 1) {
+		var owsqueak = new CustomEvent("playerouch", {});
+		sounds[soundIndex.OUCHSFX].dispatchEvent(owsqueak);
+	}
+	
 	if (player.ouchingFrames < 2) {
 		player.speedY = -0.5;
 		
@@ -1626,7 +1715,6 @@ function landing() {
 	player.landingFrames++;
 	if (player.landingFrames > 1) {
 		player.landingFrames = 0;
-		//changeState(player, playerState.Idling);
 		if (gameArea.keys && !(gameArea.keys[key.right] || gameArea.keys[key.left])) {
 			player.state = playerState.Idling;
 		}
@@ -1672,6 +1760,9 @@ function flying() {
 	if (gameArea.keys && gameArea.keys[key.a] && flyKeydown && player.wingBeats < player.maxWingBeats) {
 		player.flyingFrames = 0;
 		++player.wingBeats;
+		
+		var flapWings = new CustomEvent("playerflying", {});
+		sounds[soundIndex.FLYSFX].dispatchEvent(flapWings);
 	}
 	
 	flyKeydown = false;
