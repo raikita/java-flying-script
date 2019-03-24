@@ -3,7 +3,7 @@
  *  
  */
 
-var debug = true, showCollision = false;
+var debug = false, showCollision = false;
 
 var files;
 var player;
@@ -614,6 +614,13 @@ function updateGameArea() {
 		if (gameArea.endType != "timeout") {
 			gameArea.endType = "lose";
 		}
+		
+		sounds[soundIndex.BGM].pause();
+		sounds[soundIndex.BGM].currentTime = 0.0;
+		
+		var owsqueak = new CustomEvent("playerouch", {});
+		sounds[soundIndex.OUCHSFX].dispatchEvent(owsqueak);
+		
 		gameArea.endLoop = requestAnimationFrame(endScreen);		
 	}
 	else if (win()) {
@@ -663,7 +670,6 @@ function quitGame() {
 	inViewPlatforms = []; 
 	allProjectiles = [], allEnemies = [], inViewEnemies = [], dyingEnemies = [],
 	allCloudPlatforms = [], inViewCloudPlatforms = [];
-	
 	
 	sounds[soundIndex.BGM].pause();
 	sounds[soundIndex.BGM].currentTime = 0.0;
