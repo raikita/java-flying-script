@@ -29,7 +29,8 @@ var soundIndex = {
 		OUCHSFX : 2,
 		PROJECTILESFX : 3,
 		GETGOLDSFX : 4,
-		ENEMYDIESFX : 5
+		ENEMYDIESFX : 5,
+		WINSFX : 6
 }
 
 var images = (function() {
@@ -308,6 +309,7 @@ function loadGame() {
 	loadSound(sounds, "sounds/Falcon-clipped.mp3");
 	loadSound(sounds, "sounds/Ting.mp3");
 	loadSound(sounds, "sounds/ZombieDemonSpawn.mp3");
+	loadSound(sounds, "sounds/Falcon-clipped2.mp3");
 	
 	$.when.apply(null, loading).done(function() {
 		startGame();
@@ -628,6 +630,11 @@ function updateGameArea() {
 		window.cancelAnimationFrame(gameArea.gameLoop);
 		gameArea.gameLoop = undefined;
 		gameArea.endType = "win";
+		
+		sounds[soundIndex.BGM].pause();
+		sounds[soundIndex.BGM].currentTime = 0.0;
+		sounds[soundIndex.WINSFX].play();
+		
 		gameArea.endLoop = requestAnimationFrame(endScreen);		
 	}
 	else if (gameArea.keys && gameArea.keys[key.enter] && keydown) {
